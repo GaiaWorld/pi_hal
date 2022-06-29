@@ -1,0 +1,1 @@
+封装了前端的跨平台实现，包括字体、图片、网络等。可跨web端、window、ios、android
