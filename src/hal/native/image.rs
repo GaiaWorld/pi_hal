@@ -1,11 +1,12 @@
 use std::{ops::{Deref, DerefMut}, io::Error};
 
-use image::DynamicImage;
+pub use image::{DynamicImage, ImageError};
 use pi_assets::{asset::{Asset, Handle}, mgr::{AssetMgr, LoadResult}};
 use pi_async::rt::AsyncRuntime;
-use pi_async_common::MULTI_RUNTIME; // 后续使用pi_engine中的运行时TODO
 use pi_atom::Atom;
 use pi_share::Share;
+
+use crate::runtime::MULTI_MEDIA_RUNTIME;
 
 pub struct ImageRes {
 	value: DynamicImage,
@@ -71,8 +72,8 @@ pub async fn load_from_path(
 		},
 		LoadResult::Receiver(recv) => {
 			let k1 = k.clone();
-			let wait = MULTI_RUNTIME.wait();
-			wait.spawn(MULTI_RUNTIME.clone(), None, async move {
+			let wait = MULTI_MEDIA_RUNTIME.wait();
+			wait.spawn(MULTI_MEDIA_RUNTIME.clone(), None, async move {
 				let image = match image::open(k1.as_str()) {
 					Ok(r) => r,
 					Err(e) => {
@@ -98,6 +99,12 @@ pub async fn load_from_path(
 pub enum LoadError {
 	IoError(Error),
 	Other(String),
+}
+
+pub async fn from_path_or_url(path: &str) -> Result<DynamicImage, image::ImageError> {
+	// pat可能是本地路径， 也可能是网络路径，
+	// 网络路径TODO
+    image::open(path)
 }
 
 pub fn from_path(path: &str) -> Result<(Vec<u8>, u32, u32), image::ImageError> {

@@ -1,9 +1,12 @@
 [package]
-name = "pi_multimedia"
+name = "pi_hal"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["yineng <yineng@gmail.com>"]
+description = "Front end cross platform packaging"
+repository = "https://github.com/GaiaWorld/pi_hal.git"
+license = "MIT OR Apache-2.0"
+keywords = ["pi", "hal"]
 
 [dependencies]
 image = "0.23"
@@ -11,6 +14,19 @@ pi_assets = "0.7"
 pi_atom = "0.1"
 pi_share = "0.1"
 pi_async = "0.2"
-pi_async_common = {git="https://github.com/GaiaWorld/pi_async_common.git"}
+pi_hash = "0.1"
+pi_slotmap = {version= "0.1", features = ["serde"]}
+pi_ucd="0.1"
+ordered-float="3.0"
+nalgebra = "0.31"
+font_kit = {git="http://ser.yinengyun.com:10082/tech/font_kit.git", branch="suncy"}
 lazy_static = "1.4"
+num_cpus = "1.13"
 log = "0.4"
+serde = { version = "1.0", features = ["derive"], option=true }
+derive_deref = "1.1"
+async-trait = "0.1"
+
+[features]
+empty=[]
+
