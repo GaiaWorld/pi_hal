@@ -222,12 +222,71 @@ impl FontMgr {
 	}
 
 	/// 绘制文字
-	pub fn draw<F: FnMut(Block, FontImage)>(&mut self, update: F) {
-		self.brush.draw(&self.sheet, update);
-		// 清理等待列表
-		for (_k, font_info) in self.fonts.iter_mut() {
+	pub fn draw<F: FnMut(Block, FontImage) + Clone + Send + Sync + 'static>(&mut self, update: F) {
+		// let (fonts, glyphs) = (&mut self.fonts, &self.glyphs);
+		let (sheet, brush) = (&mut self.sheet, &mut self.brush);
+		let (glyphs, fonts) = (&sheet.glyphs, &mut sheet.fonts);
+
+		let mut all_draw = Vec::new();
+		// 遍历所有支持的字体，如果其对应的绘制等待列表不为空，则进行绘制
+		for (k, font_info) in fonts.iter_mut() {
+			let await_info = &font_info.await_info;
+			if await_info.wait_list.len() == 0 {
+				continue;
+			}
+
+			let g_0 = &glyphs[*await_info.wait_list[0]];
+			let mut start_pos = (g_0.glyph.x, g_0.glyph.y);
+
+			let (mut start, mut pos) = (0, 0.0);
+			let (mut y, mut height) = (g_0.glyph.y as f32, g_0.glyph.height);
+			let mut x_c = Vec::new();
+			while start < await_info.wait_list.len() {
+				// 每一批次绘制，只绘制同一行的字符
+				for i in start..await_info.wait_list.len() {
+					let g = &glyphs[
+						*await_info.wait_list[i]
+					];
+					let y1 = g.glyph.y as f32;
+
+					// y不相同的字符（不在同一行），在下一批次绘制，因此结束本批次字符的收集
+					if y1 != y {
+						y = y1;
+						height = g.glyph.height;
+						start_pos = (g.glyph.x, g.glyph.y);
+						break;
+					}
+					// 否则y相同，则加入当前批次
+					x_c.push(Await {
+						x_pos: pos,
+						char: g.char,
+					});
+					pos += g.glyph.width;
+				}
+				start += x_c.len();
+
+				all_draw.push(DrawBlock {
+					chars: x_c,
+					font_id: FontId(k),
+					font_size: font_info.font.font_size,
+					font_stroke:  font_info.font.stroke,
+					block: Block {
+						x: start_pos.0 as f32,
+						y: start_pos.1 as f32,
+						width: pos.ceil(),
+						height: height,
+					},
+				});
+				x_c = Vec::new();
+			}
+
 			font_info.await_info.wait_list.clear();
 			font_info.await_info.size = Size {width: 0, height: 0};// 似乎没有作用？
+		}
+
+		if all_draw.len() > 0 {
+			// 绘制一个批次的字符
+			brush.draw(all_draw, update);
 		}
 	}
 
@@ -280,4 +339,17 @@ pub struct Glyph {
     pub y: usize,
 	pub width: f32,
     pub height: f32,
+}
+
+pub struct Await {
+	pub x_pos: f32,
+	pub char: char,
+}
+
+pub struct DrawBlock {
+	pub chars: Vec<Await>, 
+	pub font_id: FontId, 
+	pub font_size: usize,
+	pub font_stroke: NotNan<f32>,
+	pub block: Block,
 }
