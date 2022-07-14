@@ -166,8 +166,9 @@ impl FontMgr {
 			Entry::Occupied(r) => Some(r.get().clone()),
 			Entry::Vacant(r) => {
 				let font = &mut self.sheet.fonts[*f];
+				let stroke = *font.font.stroke;
 
-				let width = self.brush.width(f, &font.font, char);
+				let width = self.brush.width(f, &font.font, char) + stroke;
 				let size = Size {
 					width: width, 
 					height: font.height};
@@ -212,6 +213,7 @@ impl FontMgr {
 			Entry::Vacant(_r) => {
 				let font = &mut self.sheet.fonts[*f];
 				self.brush.width(f, &font.font, char)
+				// println!("measure_width===char: {:?}, font: {:?}, width:{}", char, font, r);
 			}
 		}
 	}
@@ -234,6 +236,8 @@ impl FontMgr {
 			if await_info.wait_list.len() == 0 {
 				continue;
 			}
+
+			let offset = *font_info.font.stroke/2.0;
 
 			let g_0 = &glyphs[*await_info.wait_list[0]];
 			let mut start_pos = (g_0.glyph.x, g_0.glyph.y);
@@ -258,7 +262,7 @@ impl FontMgr {
 					}
 					// 否则y相同，则加入当前批次
 					x_c.push(Await {
-						x_pos: pos,
+						x_pos: pos + offset, // 如果有描边，需要偏移一定位置，否则可能无法容纳描边
 						char: g.char,
 					});
 					pos += g.glyph.width;
