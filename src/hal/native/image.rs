@@ -5,8 +5,15 @@ use pi_assets::{asset::{Asset, Handle}, mgr::{AssetMgr, LoadResult}};
 use pi_async::rt::AsyncRuntime;
 use pi_atom::Atom;
 use pi_share::Share;
+use std::{sync::Arc, collections::HashMap};
 
+use parking_lot::{Mutex, RwLock};
 use crate::runtime::MULTI_MEDIA_RUNTIME;
+
+lazy_static! {
+	pub static ref LOAD_IMAGE: RwLock<Option<Arc<dyn Fn(String) + Send + Sync>>> = RwLock::new(None);
+	pub static ref IMAGE_MAP: Mutex<HashMap<String, Arc<dyn Fn(image::DynamicImage) + Send + Sync>>> = Mutex::new(HashMap::new());
+}
 
 pub struct ImageRes {
 	value: DynamicImage,
@@ -101,11 +108,6 @@ pub enum LoadError {
 	Other(String),
 }
 
-pub async fn from_path_or_url(path: &str) -> Result<DynamicImage, image::ImageError> {
-	// pat可能是本地路径， 也可能是网络路径，
-	// 网络路径TODO
-    image::open(path)
-}
 
 pub fn from_path(path: &str) -> Result<(Vec<u8>, u32, u32), image::ImageError> {
     let dynamic_image = image::open(path)?;
@@ -119,4 +121,24 @@ pub fn from_memory(buf: &[u8]) -> Result<(Vec<u8>, u32, u32), image::ImageError>
     let image_buffer = dynamic_image.into_rgba8();
     let (width, height) = image_buffer.dimensions();
     Ok((image_buffer.into_raw(), width, height))
+}
+
+pub fn init_image_cb(cb: Arc<dyn Fn(String) + Send + Sync>){
+	*LOAD_IMAGE.write() = Some(cb);
+}
+
+pub fn from_path_or_url(path: &str, on_load: Arc<dyn Fn(image::DynamicImage) + Send + Sync>)  {
+	// pat可能是本地路径， 也可能是网络路径，
+	// 网络路径TODO
+    IMAGE_MAP.lock().insert(path.to_string(), on_load);
+
+	if let Some(cb) = LOAD_IMAGE.read().as_ref(){
+		println!("============= 111");
+		cb(path.to_string());
+	}
+}
+
+pub fn on_load(path: &str, image: image::DynamicImage)  {
+	let cb  = IMAGE_MAP.lock().remove(path).unwrap();
+    cb(image);
 }
