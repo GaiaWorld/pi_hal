@@ -14,34 +14,36 @@ impl Brush {
 		}
 	}
 
-	fn check_or_create_face(& mut self, font_id: FontId, font: &Font) {
+	pub fn check_or_create_face(& mut self, font_id: FontId, font: &Font) {
 		if self.faces.get_mut(*font_id).is_some() {
 			return;
 		}
-		let mut face = match Face::from_family_name(&font.font_family) {
+		let mut face = match Face::from_family_name(&font.font_family, font.font_size as u32) {
 			Ok(r) => r,
-			Err(_) => Face::from_family_name("default").unwrap()
+			Err(_) => Face::from_family_name("default", font.font_size as u32).unwrap()
 		};
-		face.set_pixel_sizes(font.font_size as u32);
+
+		if *font.stroke > 0.0 {
+			face.set_stroker_width(*font.stroke as f64);
+		}
 		self.faces.insert(*font_id, face);
 		
 	}
-}
 
-impl Brush {
-	pub fn height(&mut self, font_id: FontId, font: &Font) -> f32 {
-		self.check_or_create_face(font_id, font);
+	pub fn height(&mut self, font_id: FontId) -> f32 {
+		
 		let face = &mut self.faces[*font_id];
-		face.set_pixel_sizes(font.font_size as u32);
-		face.get_global_metrics().height as f32
+		// face.set_pixel_sizes(font.font_size as u32);
+		let metrics = face.get_global_metrics();
+		metrics.ascender as f32 - metrics.descender as f32
 	}
 
-    pub fn width(&mut self, font_id: FontId, font: &Font, char: char) -> f32 {
-        self.check_or_create_face(font_id, font);
+    pub fn width(&mut self, font_id: FontId, char: char) -> f32 {
 		let face = &mut self.faces[*font_id];
 		// if face.get_size() != font.font_size as u32 {
-			face.set_pixel_sizes(font.font_size as u32);
+			// face.set_pixel_sizes(font.font_size as u32);
 		// }
+		// println!("width======================{:?}, {:?}", font_id, char);
 
 		let metrics = face.get_metrics(char).unwrap();
 		metrics.hori_advance as f32
@@ -58,8 +60,8 @@ impl Brush {
 				None => return ,
 			};
 			// 绘制
-			face.set_pixel_sizes(draw_block.font_size as u32);
-			face.set_stroker_width(*draw_block.font_stroke as f64);
+			// face.set_pixel_sizes(draw_block.font_size as u32);
+			// face.set_stroker_width(*draw_block.font_stroke as f64);
 
 			let (block, image) = draw_sync(
 				draw_block.chars, 
@@ -147,3 +149,4 @@ impl WritePixel for FontImage {
     fn put_shadow_pixel(&mut self, _x: i32, _y: i32, _src: Rgba) {
     }
 }
+

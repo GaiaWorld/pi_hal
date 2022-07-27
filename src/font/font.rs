@@ -8,7 +8,7 @@ use std::{
 use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
 use pi_hash::XHashMap;
-use pi_slotmap::{DefaultKey, SlotMap};
+use pi_slotmap::{DefaultKey, SlotMap, Key};
 use serde::{Serialize, Deserialize};
 
 use pi_atom::Atom;
@@ -98,6 +98,9 @@ pub struct GlyphSheet {
 	fonts: SlotMap<DefaultKey, FontInfo>,
 	glyph_id_map: XHashMap<(FontId, char), GlyphId>,
 	glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
+	
+	base_glyph_id_map: XHashMap<(FontId, char), GlyphId>,
+	base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
 
 	text_packer: TextPacker,
 	size: Size<usize>,
@@ -120,10 +123,12 @@ impl FontMgr {
 	pub fn new(width: usize, height: usize) -> FontMgr {
 		Self { 
 			sheet: GlyphSheet {
-				fonts_map: XHashMap::default(), 
+				fonts_map: XHashMap::default(),
 				fonts: SlotMap::default(), 
 				glyph_id_map: XHashMap::default(), 
 				glyphs: SlotMap::default(), 
+				base_glyph_id_map: XHashMap::default(),
+				base_glyphs: SlotMap::default(),
 				text_packer: TextPacker::new(width as usize, height as usize),
 				size: Size {width, height}
 			},
@@ -135,87 +140,109 @@ impl FontMgr {
 impl FontMgr {
 	/// 字体id
 	pub fn font_id(&mut self, f: Font) -> FontId {
-		match self.sheet.fonts_map.entry(f.clone()) {
-			Entry::Occupied(r) => r.get().clone(),
-			Entry::Vacant(r) => {
-				let id = self.sheet.fonts.insert(FontInfo {
-					font: f,
-					height: 0.0,
-					await_info: AwaitInfo { 
-						size: Size {width: 0, height: 0}, 
-						wait_list: Vec::new() },
-				});
-				let id = r.insert(FontId(id)).clone();
-				let height = self.brush.height(id, &self.sheet.fonts[*id].font);
-				self.sheet.fonts[*id].height = height;
-				id
-			}
+		let id = self.get_or_insert_font(f.clone());
+
+		// get或calc baseFont的高度
+		let base_font = Font {
+			font_size: 32,
+			stroke: unsafe { NotNan::new_unchecked(0.0) },
+			font_weight: 500,
+			font_family: f.font_family,
+		};
+		let base_font_id = self.get_or_insert_font(base_font.clone());
+		let base_font = &mut self.sheet.fonts[*base_font_id];
+		if base_font.height == 0.0 {
+			self.brush.check_or_create_face(base_font_id, &base_font.font);
+			let height = self.brush.height(base_font_id);
+			base_font.base_font_id = id;
+			base_font.height = height;
 		}
+
+		// 根据baseFont，计算当前font的高度
+		let base_h = base_font.height;
+		let font = &mut self.sheet.fonts[*id];
+		if base_font_id != id { // 只有baseFont不是当前font，才为当前font赋值，否者，该值已经正确，无须再次赋值
+			self.brush.check_or_create_face(id, &font.font);
+			font.height = (base_h * (f.font_size as f32 /BASE_FONT_SIZE as f32)).ceil();
+			font.base_font_id = base_font_id;
+		}
+
+		id
 	}
 
 	pub fn font_height(&self, f: FontId, font_size: usize) -> f32 {
 		match self.sheet.fonts.get(*f) {
-			Some(r) => r.height * (font_size as f32 / BASE_FONT_SIZE as f32),
+			Some(r) =>  r.height,
 			None => font_size as f32, // 异常情况，默认返回font_size
 		}
 	}
 
 	/// 字形id, 纹理中没有更多空间容纳时，返回None
 	pub fn glyph_id(&mut self, f: FontId, char: char) -> Option<GlyphId> {
-		match self.sheet.glyph_id_map.entry((f, char)) {
-			Entry::Occupied(r) => Some(r.get().clone()),
+		let (id, base_font_id) = match self.sheet.glyph_id_map.entry((f, char)) {
+			Entry::Occupied(r) => {
+				let id = r.get().clone();
+				return Some(id);
+			},
 			Entry::Vacant(r) => {
 				let font = &mut self.sheet.fonts[*f];
-				let stroke = *font.font.stroke;
-
-				let width = self.brush.width(f, &font.font, char) + stroke;
-				let size = Size {
-					width: width, 
-					height: font.height};
-
-				// 在纹理中分配一个位置
-				let tex_position = self.sheet.text_packer.alloc(
-					size.width.ceil() as usize, 
-					size.height.ceil() as usize);
-				let tex_position = match tex_position {
-					Some(r) => r,
-					None => return None,
-				};
-
 				// 分配GlyphId
 				let id = GlyphId(self.sheet.glyphs.insert(GlyphIdDesc{
 					font_id: f,
 					char,
 					glyph: Glyph {
-						x: tex_position.x, 
-						y: tex_position.y, 
-						width: size.width, 
-						height: size.height},
+						x: 0, 
+						y: 0, 
+						width: 0.0, 
+						height: 0.0},
 				}));
 
 				// 放入等待队列, 并统计等待队列的总宽度
 				// font.await_info.size.width += size.width.ceil() as usize;
 				// font.await_info.size.height += size.height.ceil() as usize;
 				font.await_info.wait_list.push(id);
-				
-				Some(r.insert(id).clone())
+				(r.insert(id).clone(), font.base_font_id)
 			}
-		}
+		};
+		let base_w = self.measure_base(base_font_id, char);
+
+		let font = &mut self.sheet.fonts[*f];
+		let size = Size {
+			width: base_w * (font.font.font_size as f32 /BASE_FONT_SIZE as f32) + *font.font.stroke, 
+			height: font.height,
+		};
+
+		// 在纹理中分配一个位置
+		let tex_position = self.sheet.text_packer.alloc(
+			size.width.ceil() as usize, 
+			size.height.ceil() as usize);
+		let tex_position = match tex_position {
+			Some(r) => r,
+			None => return None,
+		};
+		let g = &mut self.sheet.glyphs[*id];
+		g.glyph.width = size.width.round();
+		g.glyph.height = size.height;
+		g.glyph.x = tex_position.x;
+		g.glyph.y = tex_position.y;
+
+		Some(id)
 	}
 
 	/// 测量宽度
 	pub fn measure_width(&mut self, f: FontId, char: char) -> f32 {
-		match self.sheet.glyph_id_map.entry((f, char)) {
-			Entry::Occupied(r) => {
-				let id = r.get();
-				self.sheet.glyphs[**id].glyph.width
-			},
-			Entry::Vacant(_r) => {
-				let font = &mut self.sheet.fonts[*f];
-				self.brush.width(f, &font.font, char)
-				// println!("measure_width===char: {:?}, font: {:?}, width:{}", char, font, r);
-			}
+		if let Some(id) = self.sheet.glyph_id_map.get(&(f, char)) {
+			return self.glyphs[**id].glyph.width
 		}
+
+		let (base_font_id, font_size, stroke) = match self.sheet.fonts.get(*f) {
+			Some(r) => (r.base_font_id, r.font.font_size, *r.font.stroke),
+			None => return 0.0,
+		};
+		let base_w = self.measure_base(base_font_id, char);
+		let ratio = font_size as f32 /BASE_FONT_SIZE as f32;
+
+		ratio * base_w + stroke
 	}
 
 	/// 取到字形信息
@@ -226,6 +253,7 @@ impl FontMgr {
 	/// 绘制文字
 	pub fn draw<F: FnMut(Block, FontImage) + Clone + Send + Sync + 'static>(&mut self, update: F) {
 		// let (fonts, glyphs) = (&mut self.fonts, &self.glyphs);
+		let width = self.size.width;
 		let (sheet, brush) = (&mut self.sheet, &mut self.brush);
 		let (glyphs, fonts) = (&sheet.glyphs, &mut sheet.fonts);
 
@@ -242,7 +270,7 @@ impl FontMgr {
 			let g_0 = &glyphs[*await_info.wait_list[0]];
 			let mut start_pos = (g_0.glyph.x, g_0.glyph.y);
 
-			let (mut start, mut pos) = (0, 0.0);
+			let (mut start, mut end) = (0, 0.0);
 			let (mut y, mut height) = (g_0.glyph.y as f32, g_0.glyph.height);
 			let mut x_c = Vec::new();
 			while start < await_info.wait_list.len() {
@@ -262,13 +290,17 @@ impl FontMgr {
 					}
 					// 否则y相同，则加入当前批次
 					x_c.push(Await {
-						x_pos: pos + offset, // 如果有描边，需要偏移一定位置，否则可能无法容纳描边
+						x_pos: g.glyph.x as f32 - start_pos.0 as f32 + offset, // 如果有描边，需要偏移一定位置，否则可能无法容纳描边
 						char: g.char,
 					});
-					pos += g.glyph.width;
+					end = g.glyph.x as f32 + g.glyph.width;
 				}
 				start += x_c.len();
 
+				let mut end = end + 1.0;
+				if end as usize > width {
+					end = end;
+				}
 				all_draw.push(DrawBlock {
 					chars: x_c,
 					font_id: FontId(k),
@@ -277,7 +309,7 @@ impl FontMgr {
 					block: Block {
 						x: start_pos.0 as f32,
 						y: start_pos.1 as f32,
-						width: pos.ceil(),
+						width: end - start_pos.0 as f32,
 						height: height,
 					},
 				});
@@ -312,6 +344,44 @@ impl FontMgr {
 	// fn texture_version(&self) -> usize {
 	// 	self.sheet.texture_version.load(Ordering::Relaxed)
 	// }
+
+	fn get_or_insert_font(&mut self, f: Font) -> FontId {
+		match self.sheet.fonts_map.entry(f.clone()) {
+			Entry::Occupied(r) => return r.get().clone(),
+			Entry::Vacant(r) => {
+				let id = self.sheet.fonts.insert(FontInfo {
+					font: f,
+					height: 0.0,
+					await_info: AwaitInfo { 
+						size: Size {width: 0, height: 0}, 
+						wait_list: Vec::new() },
+					base_font_id: FontId(DefaultKey::null()),
+				});
+				r.insert(FontId(id)).clone()
+			}
+		}
+	}
+	
+	fn measure_base(&mut self, base_font_id: FontId, char: char) -> f32 {
+		match self.sheet.base_glyph_id_map.entry((base_font_id, char)) {
+			Entry::Occupied(r) => {
+				let g = &self.sheet.base_glyphs[**r.get()];
+				g.width
+			},
+			Entry::Vacant(r) => {
+				let width = self.brush.width(base_font_id, char);
+
+				// 分配GlyphId
+				let id = GlyphId(self.sheet.base_glyphs.insert(BaseCharDesc{
+					font_id: base_font_id,
+					char,
+					width,
+				}));
+				r.insert(id);
+				width
+			}
+		}
+	}
 }
 
 pub const BASE_FONT_SIZE: usize = 32;
@@ -322,11 +392,18 @@ pub struct GlyphIdDesc {
 	pub glyph: Glyph,
 }
 
+pub struct BaseCharDesc {
+	pub font_id: FontId,
+	pub char: char,
+	pub width: f32,
+}
+
 #[derive(Debug)]
 pub struct FontInfo {
 	pub font: Font,
 	pub height: f32,
 	pub await_info: AwaitInfo,
+	pub base_font_id: FontId,
 }
 
 #[derive(Debug)]
@@ -357,3 +434,5 @@ pub struct DrawBlock {
 	pub font_stroke: NotNan<f32>,
 	pub block: Block,
 }
+
+
