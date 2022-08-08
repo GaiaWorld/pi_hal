@@ -154,7 +154,7 @@ impl FontMgr {
 		if base_font.height == 0.0 {
 			self.brush.check_or_create_face(base_font_id, &base_font.font);
 			let height = self.brush.height(base_font_id);
-			base_font.base_font_id = id;
+			base_font.base_font_id = base_font_id;
 			base_font.height = height;
 		}
 

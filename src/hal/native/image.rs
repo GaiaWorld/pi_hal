@@ -141,7 +141,6 @@ pub async fn from_path_or_url(path: &str) -> DynamicImage {
     IMAGE_MAP.lock().insert(path.to_string(), v.clone());
 
     if let Some(cb) = LOAD_IMAGE.read().as_ref() {
-        println!("============= 111");
         cb(path.to_string());
     }
     v.await

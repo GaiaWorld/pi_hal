@@ -43,7 +43,7 @@ impl Brush {
 		// if face.get_size() != font.font_size as u32 {
 			// face.set_pixel_sizes(font.font_size as u32);
 		// }
-		// println!("width======================{:?}, {:?}", font_id, char);
+	
 
 		let metrics = face.get_metrics(char).unwrap();
 		metrics.hori_advance as f32
