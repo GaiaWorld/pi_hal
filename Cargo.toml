@@ -12,7 +12,7 @@ keywords = ["pi", "hal"]
 image = "0.23"
 pi_assets = "0.7"
 pi_atom = "0.1"
-pi_share = "0.1"
+pi_share = "0.4"
 pi_async = "0.4"
 pi_hash = "0.1"
 pi_slotmap = {version= "0.1", features = ["serde"]}
