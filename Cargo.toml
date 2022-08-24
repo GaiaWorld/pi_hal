@@ -11,7 +11,7 @@ keywords = ["pi", "hal"]
 [dependencies]
 image = "0.23"
 pi_assets = "0.7"
-pi_atom = "0.1"
+pi_atom = "0.2"
 pi_share = "0.4"
 pi_async = "0.4"
 pi_hash = "0.1"
