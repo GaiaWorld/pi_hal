@@ -13,7 +13,7 @@ use pi_atom::Atom;
 use pi_share::Share;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::runtime::MULTI_MEDIA_RUNTIME;
+use super::runtime::MULTI_MEDIA_RUNTIME;
 use parking_lot::{Mutex, RwLock};
 
 lazy_static! {

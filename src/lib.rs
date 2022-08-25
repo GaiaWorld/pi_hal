@@ -4,7 +4,6 @@ extern crate lazy_static;
 
 mod hal;
 
-pub mod runtime;
 pub mod font;
 pub mod loader;
 
