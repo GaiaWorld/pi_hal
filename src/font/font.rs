@@ -22,6 +22,7 @@ pub struct Size<T> {
 	pub height: T,
 }
 
+#[derive(Debug)]
 pub struct Block {
 	pub y: f32, 
 	pub x: f32, 
@@ -75,8 +76,9 @@ pub struct GlyphId(pub DefaultKey);
 pub struct FontId(DefaultKey);
 
 pub struct FontMgr {
-	sheet: GlyphSheet,
-	brush: Brush,
+	sheet: GlyphSheet, // 字形表，用于存放字体的字形信息
+	
+	brush: Brush,// 画笔，用于测量、绘制文字，不同平台可能有不同的实现
 }
 
 impl std::ops::Deref for FontMgr {
@@ -93,6 +95,7 @@ impl std::ops::DerefMut for FontMgr {
     }
 }
 
+/// 字形表
 pub struct GlyphSheet {
 	fonts_map: XHashMap<Font, FontId>,
 	fonts: SlotMap<DefaultKey, FontInfo>,
@@ -138,11 +141,13 @@ impl FontMgr {
 }
 
 impl FontMgr {
-	/// 字体id
+	/// 字体id， 为每一种不同的字体描述创建一个唯一分配的id
 	pub fn font_id(&mut self, f: Font) -> FontId {
 		let id = self.get_or_insert_font(f.clone());
 
-		// get或calc baseFont的高度
+		// 每个字体字体描述，都对应一个基础字体
+		// 基础字体的font_size为32px，font_weight为500， stroke宽度为0，其余属性与当前传入的字体保持一样
+		// 基础字体的左右是，存储文字在32号字体下的字形信息（测量字形速度并不快，该设计为了尽量减少文字的测量次数，不同字号的文字均通过基础文字通过缩放算得，只有基础尺寸的文字，才会真正的去测量）
 		let base_font = Font {
 			font_size: 32,
 			stroke: unsafe { NotNan::new_unchecked(0.0) },
@@ -151,6 +156,7 @@ impl FontMgr {
 		};
 		let base_font_id = self.get_or_insert_font(base_font.clone());
 		let base_font = &mut self.sheet.fonts[*base_font_id];
+		// 基础字体的高度为0.0，证明是新创建的基础字体（之前不存在），则立即获取字体的高度（字体高度是同字体，不同字符共享的，所以可根据字体直接测量得到）
 		if base_font.height == 0.0 {
 			self.brush.check_or_create_face(base_font_id, &base_font.font);
 			let height = self.brush.height(base_font_id);
@@ -158,10 +164,10 @@ impl FontMgr {
 			base_font.height = height;
 		}
 
-		// 根据baseFont，计算当前font的高度
 		let base_h = base_font.height;
 		let font = &mut self.sheet.fonts[*id];
-		if base_font_id != id { // 只有baseFont不是当前font，才为当前font赋值，否者，该值已经正确，无须再次赋值
+		if base_font_id != id { 
+			// 当前传入字体与基础字体不同， 则通过比例缩放，计算传入字体的高度。
 			self.brush.check_or_create_face(id, &font.font);
 			font.height = (base_h * (f.font_size as f32 /BASE_FONT_SIZE as f32)).ceil();
 			font.base_font_id = base_font_id;
@@ -225,7 +231,6 @@ impl FontMgr {
 		g.glyph.height = size.height;
 		g.glyph.x = tex_position.x;
 		g.glyph.y = tex_position.y;
-
 		Some(id)
 	}
 
@@ -267,25 +272,27 @@ impl FontMgr {
 
 			let offset = *font_info.font.stroke/2.0;
 
-			let g_0 = &glyphs[*await_info.wait_list[0]];
-			let mut start_pos = (g_0.glyph.x, g_0.glyph.y);
+			// let g_0 = &glyphs[*await_info.wait_list[0]];
+			let mut start_pos;
+			let (mut y, mut height);
 
 			let (mut start, mut end) = (0, 0.0);
-			let (mut y, mut height) = (g_0.glyph.y as f32, g_0.glyph.height);
-			let mut x_c = Vec::new();
+			let mut x_c;
 			while start < await_info.wait_list.len() {
+				let g = &glyphs[*await_info.wait_list[start]];
+				start_pos = (g.glyph.x, g.glyph.y);
+				y = g.glyph.y as f32;
+				height = g.glyph.height;
+				x_c = Vec::new();
+
 				// 每一批次绘制，只绘制同一行的字符
 				for i in start..await_info.wait_list.len() {
 					let g = &glyphs[
 						*await_info.wait_list[i]
 					];
-					let y1 = g.glyph.y as f32;
 
 					// y不相同的字符（不在同一行），在下一批次绘制，因此结束本批次字符的收集
-					if y1 != y {
-						y = y1;
-						height = g.glyph.height;
-						start_pos = (g.glyph.x, g.glyph.y);
+					if g.glyph.y as f32 != y {
 						break;
 					}
 					// 否则y相同，则加入当前批次
@@ -310,10 +317,9 @@ impl FontMgr {
 						x: start_pos.0 as f32,
 						y: start_pos.1 as f32,
 						width: end - start_pos.0 as f32,
-						height: height,
+						height,
 					},
 				});
-				x_c = Vec::new();
 			}
 
 			font_info.await_info.wait_list.clear();
@@ -422,11 +428,13 @@ pub struct Glyph {
     pub height: f32,
 }
 
+#[derive(Debug)]
 pub struct Await {
 	pub x_pos: f32,
 	pub char: char,
 }
 
+#[derive(Debug)]
 pub struct DrawBlock {
 	pub chars: Vec<Await>, 
 	pub font_id: FontId, 

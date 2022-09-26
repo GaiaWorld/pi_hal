@@ -1,3 +1,4 @@
+#![feature(io_error_more)]
 
 #[macro_use]
 extern crate lazy_static;

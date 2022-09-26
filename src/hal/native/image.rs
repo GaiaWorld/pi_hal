@@ -9,6 +9,7 @@ use pi_assets::{
     mgr::{AssetMgr, LoadResult},
 };
 use pi_async::rt::{AsyncRuntime, AsyncValue};
+
 use pi_atom::Atom;
 use pi_share::Share;
 use std::{collections::HashMap, sync::Arc};
@@ -48,14 +49,18 @@ impl ImageRes {
             DynamicImage::ImageLumaA8(image) => image.width() * image.height() * 2,
             DynamicImage::ImageRgb8(image) => image.width() * image.height() * 3,
             DynamicImage::ImageRgba8(image) => image.width() * image.height() * 4,
-            DynamicImage::ImageBgr8(image) => image.width() * image.height() * 3,
-            DynamicImage::ImageBgra8(image) => image.width() * image.height() * 4,
+            // DynamicImage::ImageBgr8(image) => image.width() * image.height() * 3,
+            // DynamicImage::ImageBgra8(image) => image.width() * image.height() * 4,
 
             DynamicImage::ImageLuma16(image) => image.width() * image.height() * 2,
             DynamicImage::ImageLumaA16(image) => image.width() * image.height() * 4,
 
             DynamicImage::ImageRgb16(image) => image.width() * image.height() * 2 * 3,
             DynamicImage::ImageRgba16(image) => image.width() * image.height() * 2 * 4,
+            DynamicImage::ImageRgb32F(image) => image.width() * image.height() * 4 * 3,
+            DynamicImage::ImageRgba32F(image) => image.width() * image.height() * 4 * 4,
+            _ => todo!(),
+            // _ => todo!(),
         };
         Self {
             value,
@@ -144,6 +149,16 @@ pub async fn from_path_or_url(path: &str) -> DynamicImage {
         cb(path.to_string());
     }
     v.await
+}
+
+pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
+	let v = pi_async::rt::AsyncValue::new();
+    IMAGE_MAP.lock().insert(path.to_string(), v.clone());
+
+    if let Some(cb) = LOAD_IMAGE.read().as_ref() {
+        cb(path.to_string());
+    }
+    Ok(v.await)
 }
 
 pub fn on_load(path: &str, image: image::DynamicImage) {

@@ -9,11 +9,14 @@ license = "MIT OR Apache-2.0"
 keywords = ["pi", "hal"]
 
 [dependencies]
-image = "0.23"
-pi_assets = "0.8"
+pi_share = {version="0.4", features=["serial"]}
+pi_async = {version="0.5", features=["serial"]}
+image = "0.24"
+pi_assets = "0.10"
 pi_atom = "0.2"
-pi_share = "0.4"
-pi_async = "0.4"
+# pi_share = "0.4"
+# pi_async = "0.5"
+pi_futures = "0.1"
 pi_hash = "0.1"
 pi_slotmap = {version= "0.1", features = ["serde"]}
 pi_ucd="0.1"
@@ -27,8 +30,22 @@ derive_deref = "1.1"
 async-trait = "0.1"
 parking_lot = "0.11"
 
+# [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4"
+web-sys = {version = "0.3", features = [
+	"HtmlCanvasElement",
+	"CanvasRenderingContext2d",
+	"Document", 
+	"Window",
+	"ImageData"
+]}
+js-sys = "0.3"
+
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 font_kit = {git="http://ser.yinengyun.com:10082/tech/font_kit.git"}
+
 
 
 [features]
