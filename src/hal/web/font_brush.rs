@@ -4,6 +4,7 @@ use pi_slotmap::{SecondaryMap, DefaultKey};
 use wasm_bindgen::JsCast;
 use crate::{font::font::{FontId, Font, FontImage, Block, Await, DrawBlock}, measureText};
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
+use pi_share::ThreadSync;
 
 use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight};
 
@@ -49,7 +50,7 @@ impl Brush {
 		measureText(&self.ctx, ch_code, face.font_size as u32, face.font_family.get_hash() as u32)
     }
 
-    pub fn draw<F: FnMut(Block, FontImage) + Clone + Send + Sync + 'static>(
+    pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
 		&mut self, 
 		draw_list: Vec<DrawBlock>,
 		mut update: F) {

@@ -1,3 +1,4 @@
+use pi_share::ThreadSync;
 use pi_slotmap::{SecondaryMap, DefaultKey};
 use font_kit::{font::Face, util::{ WritePixel, Rgba}};
 
@@ -49,7 +50,7 @@ impl Brush {
 		metrics.hori_advance as f32
     }
 
-    pub fn draw<F: FnMut(Block, FontImage) + Clone + Send + Sync + 'static>(
+    pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
 		&mut self, 
 		draw_list: Vec<DrawBlock>,
 		mut update: F) {
@@ -132,9 +133,9 @@ impl WritePixel for FontImage {
 		let offset = 4 * (self.width * y as usize + x as usize);
 		if offset + 4 < self.buffer.len() {
 			// 一次性内存写入，TODO bgra
-			self.buffer[offset] =  (src.b as f32 * src_a + self.buffer[offset] as f32 * dst_a) as u8 ;
+			self.buffer[offset] =  (src.r as f32 * src_a + self.buffer[offset] as f32 * dst_a) as u8 ;
 			self.buffer[offset + 1] = (src.g as f32 * src_a + self.buffer[offset + 1] as f32 * dst_a) as u8;
-			self.buffer[offset + 2] = (src.r as f32 * src_a + self.buffer[offset + 2] as f32 * dst_a) as u8;
+			self.buffer[offset + 2] = (src.b as f32 * src_a + self.buffer[offset + 2] as f32 * dst_a) as u8;
 
 			// let b =  (src.b as f32 * src_a + self.buffer[offset] as f32 * dst_a) as u8 ;
 			// let g = (src.g as f32 * src_a + self.buffer[offset + 1] as f32 * dst_a) as u8;

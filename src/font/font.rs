@@ -8,6 +8,7 @@ use std::{
 use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
 use pi_hash::XHashMap;
+use pi_share::ThreadSync;
 use pi_slotmap::{DefaultKey, SlotMap, Key};
 use serde::{Serialize, Deserialize};
 
@@ -256,7 +257,7 @@ impl FontMgr {
 	}
 
 	/// 绘制文字
-	pub fn draw<F: FnMut(Block, FontImage) + Clone + Send + Sync + 'static>(&mut self, update: F) {
+	pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(&mut self, update: F) {
 		// let (fonts, glyphs) = (&mut self.fonts, &self.glyphs);
 		let width = self.size.width;
 		let (sheet, brush) = (&mut self.sheet, &mut self.brush);
