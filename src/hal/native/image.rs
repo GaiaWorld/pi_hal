@@ -8,20 +8,13 @@ use pi_assets::{
     asset::{Asset, Handle},
     mgr::{AssetMgr, LoadResult},
 };
-use pi_async::rt::{AsyncRuntime, AsyncValue};
-
+use pi_async::rt::AsyncRuntime;
 use pi_atom::Atom;
 use pi_share::Share;
-use std::{collections::HashMap, sync::Arc};
+
+use crate::create_async_value;
 
 use super::runtime::MULTI_MEDIA_RUNTIME;
-use parking_lot::{Mutex, RwLock};
-
-lazy_static! {
-    pub static ref LOAD_IMAGE: RwLock<Option<Arc<dyn Fn(String) + Send + Sync>>> =
-        RwLock::new(None);
-    pub static ref IMAGE_MAP: Mutex<HashMap<String, AsyncValue<DynamicImage>>> = Mutex::new(HashMap::new());
-}
 
 pub struct ImageRes {
     value: DynamicImage,
@@ -51,7 +44,6 @@ impl ImageRes {
             DynamicImage::ImageRgba8(image) => image.width() * image.height() * 4,
             // DynamicImage::ImageBgr8(image) => image.width() * image.height() * 3,
             // DynamicImage::ImageBgra8(image) => image.width() * image.height() * 4,
-
             DynamicImage::ImageLuma16(image) => image.width() * image.height() * 2,
             DynamicImage::ImageLumaA16(image) => image.width() * image.height() * 4,
 
@@ -134,34 +126,12 @@ pub fn from_memory(buf: &[u8]) -> Result<(Vec<u8>, u32, u32), image::ImageError>
     Ok((image_buffer.into_raw(), width, height))
 }
 
-pub fn init_image_cb(cb: Arc<dyn Fn(String) + Send + Sync>) {
-    *LOAD_IMAGE.write() = Some(cb);
-}
-
 pub async fn from_path_or_url(path: &str) -> DynamicImage {
-    // pat可能是本地路径， 也可能是网络路径，
-    // 网络路径TODO
-
-    let v = pi_async::rt::AsyncValue::new();
-    IMAGE_MAP.lock().insert(path.to_string(), v.clone());
-
-    if let Some(cb) = LOAD_IMAGE.read().as_ref() {
-        cb(path.to_string());
-    }
-    v.await
+    let v = create_async_value(path);
+    image::load_from_memory(&v.await).unwrap()
 }
 
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
-	let v = pi_async::rt::AsyncValue::new();
-    IMAGE_MAP.lock().insert(path.to_string(), v.clone());
-
-    if let Some(cb) = LOAD_IMAGE.read().as_ref() {
-        cb(path.to_string());
-    }
-    Ok(v.await)
-}
-
-pub fn on_load(path: &str, image: image::DynamicImage) {
-    let v = IMAGE_MAP.lock().remove(path).unwrap();
-    v.set(image);
+    let v = create_async_value(path);
+    image::load_from_memory(&v.await)
 }
