@@ -21,7 +21,8 @@ pi_hash = "0.1"
 pi_slotmap = {version= "0.1", features = ["serde"]}
 pi_ucd="0.1"
 ordered-float="3.0"
-nalgebra = "0.31"
+# 回滚到0.30, 0.31安卓pi_app 编不过
+nalgebra = "0.30"
 lazy_static = "1.4"
 num_cpus = "1.13"
 log = "0.4"
