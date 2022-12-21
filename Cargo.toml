@@ -45,7 +45,7 @@ js-sys = "0.3"
 # basis-universal = { path = "F:/project/rust_crates/basis-universal"}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-font_kit = {git="http://ser.yinengyun.com:10082/tech/font_kit.git"}
+font_kit = {git="http://ser.yinengyun.com:10082/tech/font_kit.git", rev = "1ceda3937"}
 
 
 
