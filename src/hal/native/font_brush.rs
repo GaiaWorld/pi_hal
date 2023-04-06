@@ -28,12 +28,13 @@ impl Brush {
 			face.set_stroker_width(*font.stroke as f64);
 		}
 		self.faces.insert(*font_id, face);
-		
+		// log::trace!("check_or_create_face!!!========{:?}, {:p}, {:?}", *font_id, &self.faces[*font_id], &self.faces[*font_id]);
 	}
 
 	pub fn height(&mut self, font_id: FontId) -> f32 {
 		
 		let face = &mut self.faces[*font_id];
+		// log::trace!("height!!!========{:?}, {:p}, {:?}", *font_id, face, face);
 		// face.set_pixel_sizes(font.font_size as u32);
 		let metrics = face.get_global_metrics();
 		metrics.ascender as f32 - metrics.descender as f32
