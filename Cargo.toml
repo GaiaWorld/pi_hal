@@ -12,7 +12,7 @@ keywords = ["pi", "hal"]
 # pi_share = {version="0.4", features=["serial"]}
 # pi_async = {version="0.5", features=["serial"]}
 image = "0.24"
-pi_assets = "0.10"
+pi_assets = "0.11"
 pi_atom = "0.2"
 pi_share = "0.4"
 pi_async = "0.5"
@@ -22,7 +22,7 @@ pi_slotmap = {version= "0.1", features = ["serde"]}
 pi_ucd="0.1"
 ordered-float="3.0"
 # 回滚到0.30, 0.31安卓pi_app 编不过
-nalgebra = "0.30"
+nalgebra = "0.32"
 lazy_static = "1.4"
 num_cpus = "1.13"
 log = "0.4"
