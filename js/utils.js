@@ -88,3 +88,7 @@ export function getGlobalMetricsHeight(font_name, size) {
 export function loadFile(image_name) {
 	return Promise.resolve(new Uint8Array(0))
 }
+export function loadImageAsCanvas(image_name) {
+	return Promise.resolve(new Uint8Array(0))
+}
+

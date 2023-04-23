@@ -23,6 +23,9 @@ extern "C" {
     pub fn loadImage(image_name: u32, callback: &Function);
 	#[wasm_bindgen(catch)]
 	pub async fn loadFile(image_name: u32) -> Result<JsValue, JsValue>;
+	// 加载图片作文canvas
+	#[wasm_bindgen(catch)]
+	pub async fn loadImageAsCanvas(image_name: u32) -> Result<JsValue, JsValue>;
     // #[wasm_bindgen]
     pub fn useVao() -> bool;
 }
