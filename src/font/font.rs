@@ -307,7 +307,7 @@ impl FontMgr {
 
 				let mut end = end + 1.0;
 				if end as usize > width {
-					end = end;
+					end = width as f32;
 				}
 				all_draw.push(DrawBlock {
 					chars: x_c,
