@@ -5,6 +5,7 @@ use js_sys::Function;
 pub mod image;
 pub mod font_brush;
 pub mod runtime;
+pub mod file;
 
 #[wasm_bindgen(module = "/js/utils.js")]
 extern "C" {
