@@ -13,6 +13,6 @@ pub async fn load_from_url(path: &Atom) -> Result<Vec<u8>, FileLoadErr> {
 		Ok(r) => {
 			Ok(js_sys::Uint8Array::from(r).to_vec())
 		},
-		Err(e) => Err(e)
+		Err(e) => Err(FileLoadErr(e))
 	}
 }
