@@ -12,7 +12,7 @@ keywords = ["pi", "hal"]
 # pi_share = {version="0.4", features=["serial"]}
 # pi_async = {version="0.5", features=["serial"]}
 image = "0.24"
-pi_assets = "0.11"
+pi_assets = "0.12"
 pi_atom = "0.2"
 pi_share = "0.4"
 pi_async = "0.5"

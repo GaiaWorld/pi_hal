@@ -5,7 +5,7 @@ use std::{
 
 pub use image::{DynamicImage, ImageError};
 use pi_assets::{
-    asset::{Asset, Handle},
+    asset::{Asset, Size, Handle},
     mgr::{AssetMgr, LoadResult},
 };
 use pi_async::rt::AsyncRuntime;
@@ -63,7 +63,9 @@ impl ImageRes {
 
 impl Asset for ImageRes {
     type Key = Atom;
+}
 
+impl Size for ImageRes {
     fn size(&self) -> usize {
         self.size
     }
