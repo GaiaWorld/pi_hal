@@ -3,6 +3,7 @@
 use nalgebra::Point2;
 use pi_hash::XHashMap;
 
+#[derive(Debug)]
 pub struct TextPacker{
 	pub width: usize,
 	pub height: usize,
