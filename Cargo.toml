@@ -10,12 +10,12 @@ keywords = ["pi", "hal"]
 
 [dependencies]
 # pi_share = {version="0.4", features=["serial"]}
-# pi_async = {version="0.5", features=["serial"]}
 image = "0.24"
-pi_assets = "0.12"
+pi_assets = "0.13"
 pi_atom = "0.2"
 pi_share = "0.4"
-pi_async = "0.5"
+pi-async-rt = "0.1.10"
+# pi-async-rt = {version="0.1", features=["serial"]}
 pi_futures = "0.1"
 pi_hash = "0.1"
 pi_slotmap = {version= "0.1", features = ["serde"]}

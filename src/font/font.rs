@@ -295,6 +295,9 @@ impl FontMgr {
 					// y不相同的字符（不在同一行），在下一批次绘制，因此结束本批次字符的收集
 					if g.glyph.y as f32 != y {
 						break;
+					} else if g.glyph.x as f32 - end > 1.0 && x_c.len() > 0 {
+						// y相同， 但x间有空位，也在下批次处理
+						break;
 					}
 					// 否则y相同，则加入当前批次
 					x_c.push(Await {

@@ -1,4 +1,5 @@
 #![feature(io_error_more)]
+#![feature(once_cell)]
 
 #[macro_use]
 extern crate lazy_static;

@@ -8,7 +8,7 @@ use pi_assets::{
     asset::{Asset, Size, Handle},
     mgr::{AssetMgr, LoadResult},
 };
-use pi_async::rt::AsyncRuntime;
+use pi_async_rt::rt::AsyncRuntime;
 use pi_atom::Atom;
 use pi_share::Share;
 
