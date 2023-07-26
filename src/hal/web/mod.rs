@@ -29,4 +29,6 @@ extern "C" {
 	pub async fn loadImageAsCanvas(image_name: u32) -> Result<JsValue, JsValue>;
     // #[wasm_bindgen]
     pub fn useVao() -> bool;
+    pub fn hasAtom(key: u32) -> bool;
+    pub fn setAtom(key: u32, v: String);
 }
