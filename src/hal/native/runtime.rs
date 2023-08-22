@@ -1,9 +1,12 @@
 use std::env;
+use std::time::Instant;
 
 use pi_async_rt::rt::multi_thread::{MultiTaskRuntime, StealableTaskPool, MultiTaskRuntimeBuilder};
-// use pi_async_rt::rt::serial_local_thread::LocalTaskRuntime;
+// use pi_share::ShareMutex;
 
 lazy_static! {
+	// pub static ref LOGS: ShareMutex<(Vec<String>, Instant)> = ShareMutex::new((Vec::new(), Instant::now()));
+
     // 多媒体运行时，多线程，不需要主动推
     pub static ref MULTI_MEDIA_RUNTIME: MultiTaskRuntime<()> = {
         let count = match env::var("_ver") {
