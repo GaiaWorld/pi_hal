@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 pub use image::{DynamicImage, ImageBuffer, ImageError};
 use pi_atom::Atom;
 
-use crate::loadImageAsCanvas;
+use crate::{loadImageAsCanvas, hasAtom, setAtom};
 
 // path可能是本地路径， 也可能是网络路径，
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
@@ -12,6 +12,12 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 	// } else {
 	// 	false
 	// };
+	
+	let id = path.get_hash() as u32;
+	if hasAtom(id) == false {
+		setAtom(id, path.to_string());
+	}
+
 	match loadImageAsCanvas(path.get_hash() as u32).await {
 		Ok(r) => {
 			let ctx = web_sys::CanvasRenderingContext2d::from(r);
