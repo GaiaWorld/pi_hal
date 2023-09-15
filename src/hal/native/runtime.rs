@@ -33,20 +33,23 @@ lazy_static! {
     };
 }
 
+// use pi_async_rt::prelude::SingleTaskRunner;
+
+
 #[cfg(feature = "single_thread")]
 lazy_static! {
 	// pub static ref LOGS: ShareMutex<(Vec<String>, Instant)> = ShareMutex::new((Vec::new(), Instant::now()));
 
     // 多媒体运行时，多线程，不需要主动推
-    pub static ref MULTI_MEDIA_RUNTIME: pi_async_rt::prelude::SingleTaskRuntime<()>  = {
-		let runner = pi_async_rt::prelude::SingleTaskRunner::default();
-		runner.into_local()
+    pub static ref MULTI_MEDIA_RUNTIME: pi_async_rt::prelude::WorkerRuntime<()>  = {
+		pi_async_rt::rt::AsyncRuntimeBuilder::default_worker_thread(Some("MULTI_MEDIA_RUNTIME"), None, None, None)
+		// let runner = pi_async_rt::prelude::SingleTaskRunner::default();
+		// runner.startup().unwrap()
     };
 
 	// 渲染运行时，多线程，不需要主动推
-    pub static ref RENDER_RUNTIME:  pi_async_rt::prelude::SingleTaskRuntime<()> = {
-        let runner = pi_async_rt::prelude::SingleTaskRunner::default();
-		runner.into_local()
+    pub static ref RENDER_RUNTIME:  pi_async_rt::prelude::WorkerRuntime<()> = {
+        pi_async_rt::rt::AsyncRuntimeBuilder::default_worker_thread(Some("RENDER_RUNTIME"), None, None, None)
     };
 }
 
