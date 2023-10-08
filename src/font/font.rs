@@ -215,7 +215,7 @@ impl FontMgr {
 
 		let font = &mut self.sheet.fonts[*f];
 		let size = Size {
-			width: base_w * (font.font.font_size as f32 /BASE_FONT_SIZE as f32) + *font.font.stroke, 
+			width: base_w * (font.font.font_size as f32 /BASE_FONT_SIZE as f32) + *font.font.stroke + 2.0, 
 			height: font.height,
 		};
 
