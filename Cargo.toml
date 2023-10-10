@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -20,6 +20,7 @@ pi_futures = "0.1"
 pi_hash = "0.1"
 pi_slotmap = {version= "0.1", features = ["serde"]}
 pi_ucd="0.1"
+pi_null="0.1"
 ordered-float="3.0"
 # 回滚到0.30, 0.31安卓pi_app 编不过
 nalgebra = "0.32"

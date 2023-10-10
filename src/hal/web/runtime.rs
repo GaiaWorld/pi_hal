@@ -35,7 +35,7 @@ impl Deref for OnceCellWrap {
 // 	}
 // }
 
-
+// 在外部初始化
 pub static MULTI_MEDIA_RUNTIME: OnceCellWrap = OnceCellWrap(OnceCell::new());
 pub static RENDER_RUNTIME: OnceCellWrap = OnceCellWrap(OnceCell::new());
 
@@ -47,5 +47,9 @@ pub static RENDER_RUNTIME: OnceCellWrap = OnceCellWrap(OnceCell::new());
 
 // 	pub static ref RUNNER_RENDER: Arc<ShareMutex<LocalTaskRunner<()>>> = Arc::new(ShareMutex::new(LocalTaskRunner::new()));
 // 	// 多媒体运行时，多线程，需要主动推
-// 	pub static ref RENDER_RUNTIME: LocalTaskRuntime<()> = RUNNER_RENDER.lock().get_runtime();
+	// pub static ref RENDER_RUNTIME: LocalTaskRuntime<()> = {
+	// 	let mut runner = pi_async_rt::rt::serial_local_compatible_wasm_runtime::LocalTaskRunner::new();
+	// 	runner.get_runtime()
+	// };
+	// RUNNER_RENDER.lock().get_runtime();
 // }

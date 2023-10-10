@@ -9,12 +9,13 @@ use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
 use pi_hash::XHashMap;
 use pi_share::ThreadSync;
-use pi_slotmap::{DefaultKey, SlotMap, Key};
+use pi_slotmap::{DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
+use pi_null::Null;
 
 use pi_atom::Atom;
 
-use super::{text_pack::TextPacker};
+use super::text_pack::TextPacker;
 use crate::font_brush::Brush;
 
 #[derive(Debug, Clone)]
