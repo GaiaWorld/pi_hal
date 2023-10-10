@@ -33,8 +33,6 @@ lazy_static! {
     };
 }
 
-// use pi_async_rt::prelude::SingleTaskRunner;
-
 
 #[cfg(feature = "single_thread")]
 lazy_static! {
@@ -48,9 +46,11 @@ lazy_static! {
     };
 
 	// 渲染运行时，多线程，不需要主动推
-    pub static ref RENDER_RUNTIME:  pi_async_rt::prelude::WorkerRuntime<()> = {
-        pi_async_rt::rt::AsyncRuntimeBuilder::default_worker_thread(Some("RENDER_RUNTIME"), None, None, None)
-    };
+	pub static ref RENDER_RUNTIME:  pi_async_rt::prelude::SingleTaskRuntime = {
+		// 渲染运行时，多线程，不需要主动推
+		let runner:  pi_async_rt::prelude::SingleTaskRunner<()> = pi_async_rt::prelude::SingleTaskRunner::default();
+		runner.into_local()
+	};
 }
 
 
