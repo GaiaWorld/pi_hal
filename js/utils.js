@@ -92,3 +92,11 @@ export function loadImageAsCanvas(image_name) {
 	return Promise.resolve(new Uint8Array(0))
 }
 
+export function hasAtom(key) {
+
+}
+
+export function setAtom(key, v) {
+
+}
+

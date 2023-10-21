@@ -35,4 +35,4 @@ extern "C" {
 }
 
 #[cfg(feature="web_local_load")]
-pub use web_local::init_load_cb;
+pub use web_local::{init_load_cb, on_load};
