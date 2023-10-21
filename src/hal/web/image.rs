@@ -40,4 +40,4 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 }
 
 #[cfg(feature="web_local_load")]
-pub use super::web_local::{load_from_url, on_load};
+pub use super::web_local::{load_image_from_url as load_from_url, on_load};

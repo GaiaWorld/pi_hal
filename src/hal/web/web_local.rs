@@ -36,7 +36,13 @@ pub fn create_async_value(path: &str) -> AsyncValue<Vec<u8>> {
     v
 }
 
-pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
+pub async fn load_image_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
     let v = create_async_value(path);
     image::load_from_memory(&v.await)
 }
+
+pub async fn load_file_from_url(path: &Atom) -> Result<Vec<u8>, String> {
+    let v = create_async_value(path);
+    Ok(v.await)
+}
+

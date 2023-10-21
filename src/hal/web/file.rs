@@ -8,6 +8,7 @@ use crate::{loadFile, hasAtom, setAtom};
 pub struct FileLoadErr(JsValue);
 
 // path可能是本地路径， 也可能是网络路径，
+#[cfg(not(feature="web_local_load"))]
 pub async fn load_from_url(path: &Atom) -> Result<Vec<u8>, FileLoadErr> {
 	let id = path.get_hash() as u32;
 	if hasAtom(id) == false {
@@ -20,3 +21,7 @@ pub async fn load_from_url(path: &Atom) -> Result<Vec<u8>, FileLoadErr> {
 		Err(e) => Err(FileLoadErr(e))
 	}
 }
+
+
+#[cfg(feature="web_local_load")]
+pub use super::web_local::load_file_from_url as load_from_url;
