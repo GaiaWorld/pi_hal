@@ -6,6 +6,8 @@ pub mod image;
 pub mod font_brush;
 pub mod runtime;
 pub mod file;
+#[cfg(feature="web_local_load")]
+pub mod web_local;
 
 #[wasm_bindgen(module = "/js/utils.js")]
 extern "C" {
@@ -21,7 +23,6 @@ extern "C" {
     // #[wasm_bindgen]
     pub fn measureText(ctx: &CanvasRenderingContext2d, ch: u32, font_size: u32, name: u32) -> f32;
     // #[wasm_bindgen]
-    pub fn loadImage(image_name: u32, callback: &Function);
 	#[wasm_bindgen(catch)]
 	pub async fn loadFile(image_name: u32) -> Result<JsValue, JsValue>;
 	// 加载图片作文canvas
@@ -32,3 +33,6 @@ extern "C" {
     pub fn hasAtom(key: u32) -> bool;
     pub fn setAtom(key: u32, v: String);
 }
+
+#[cfg(feature="web_local_load")]
+pub use web_local::init_load_cb;
