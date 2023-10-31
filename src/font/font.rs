@@ -224,6 +224,7 @@ impl FontMgr {
 		let tex_position = self.sheet.text_packer.alloc(
 			size.width.ceil() as usize, 
 			size.height.ceil() as usize);
+		log::warn!("tex_position====={:?}, {:?}", tex_position, &size);
 		let tex_position = match tex_position {
 			Some(r) => r,
 			None => return None,
