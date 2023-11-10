@@ -2,14 +2,14 @@ use std::mem::transmute;
 
 use pi_slotmap::{SecondaryMap, DefaultKey};
 use wasm_bindgen::JsCast;
-use crate::{font::font::{FontId, Font, FontImage, Block, Await, DrawBlock}, measureText};
+use crate::{font::font::{FontFamilyId, Font, FontImage, Block, Await, DrawBlock, FontInfo}, measureText};
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use pi_share::ThreadSync;
 
 use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight};
 
 pub struct Brush {
-	faces: SecondaryMap<DefaultKey, Font>,
+	fonts: SecondaryMap<DefaultKey, Font>,
 	canvas: HtmlCanvasElement,
 	ctx: CanvasRenderingContext2d,
 }
@@ -26,28 +26,28 @@ impl Brush {
             .dyn_into::<CanvasRenderingContext2d>()
             .expect("create canvas fail");
 		Brush {
-			faces: SecondaryMap::default(),
+			fonts: SecondaryMap::default(),
 			canvas,
 			ctx
 		}
 	}
 
-	pub fn check_or_create_face(&mut self, font_id: FontId, font: &Font) {
-		self.faces.insert((*font_id).clone(), font.clone());
+	pub fn check_or_create_face(&mut self, font_id: FontFamilyId, font: &FontInfo) {
+		self.fonts.insert((*font_id).clone(), font.font.clone());
 	}
 
-	pub fn height(&mut self, font_id: FontId) -> f32 {
-		let face = &mut self.faces[*font_id];
-		getGlobalMetricsHeight(face.font_family.get_hash() as u32, face.font_size as f32) as f32
+	pub fn height(&mut self, font_id: FontFamilyId, font: &FontInfo) -> f32 {
+		let font = &mut self.fonts[*font_id];
+		getGlobalMetricsHeight(font.font_family_string.get_hash() as u32, font.font_size as f32) as f32
 	}
 
-    pub fn width(&mut self, font_id: FontId, char: char) -> f32 {
-		let face = match self.faces.get_mut(*font_id) {
+    pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
+		let font = match self.fonts.get_mut(*font_id) {
 			Some(r) => r,
-			None => return 0.0,
+			None => return (0.0, 0),
 		};
 		let ch_code: u32 = unsafe { transmute(char) };
-		measureText(&self.ctx, ch_code, face.font_size as u32, face.font_family.get_hash() as u32)
+		(measureText(&self.ctx, ch_code, font.font_size as u32, font.font_family_string.get_hash() as u32), 0/*在web上，font face索引并不重要*/)
     }
 
     pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
@@ -56,18 +56,15 @@ impl Brush {
 		mut update: F) {
 		
 		for draw_block in draw_list.into_iter() {
-			let face = match self.faces.get_mut(*draw_block.font_id) {
+			let font = match self.fonts.get_mut(*draw_block.font_id) {
 				Some(r) => r,
 				None => return ,
 			};
-			// 绘制
-			// face.set_pixel_sizes(draw_block.font_size as u32);
-			// face.set_stroker_width(*draw_block.font_stroke as f64);
 
 			draw_sync(
 				draw_block.chars, 
 				&draw_block.block,
-				face,
+				font,
 				*draw_block.font_stroke as f64,
 				&self.canvas,
 				&self.ctx
@@ -89,7 +86,7 @@ fn draw_sync(list: Vec<Await>, block: &Block, font: &Font, stroke: f64, canvas: 
 		ctx,
 		font.font_weight as u32,
 		font.font_size as u32,
-		font.font_family.get_hash() as u32,
+		font.font_family_string.get_hash() as u32,
 		stroke as u8,
 	);
 	if stroke > 0.0 {

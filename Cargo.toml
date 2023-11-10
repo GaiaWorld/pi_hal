@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -10,6 +10,7 @@ keywords = ["pi", "hal"]
 
 [dependencies]
 # pi_share = {version="0.4", features=["serial"]}
+smallvec = { version = "1.8", features = ["serde"] }
 image = "0.24"
 pi_assets = "0.13"
 pi_atom = "0.2"

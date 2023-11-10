@@ -27,10 +27,9 @@ impl TextPacker {
     }
     // 分配行
     pub fn alloc_line(&mut self, mut line_height: usize) -> TexLine {
-        // 将奇数的行高向上变成偶数，这样单行容纳2种字号，提高利用率
-        if line_height %2 != 0 {
-            line_height += 1;
-        }
+        //每行可容纳四种字号，提高利用率
+        line_height = line_height / 4 * 4 + 4;
+
         let v = self.last_v;
         let mut is_new = false;
         let line = self.line_map.entry(line_height).or_insert_with(|| {

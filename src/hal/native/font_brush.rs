@@ -1,54 +1,72 @@
+use pi_atom::Atom;
 use pi_share::ThreadSync;
 use pi_slotmap::{SecondaryMap, DefaultKey};
 use font_kit::{font::Face, util::{ WritePixel, Rgba}};
+use smallvec::SmallVec;
 
-use crate::font::font::{FontId, Font, FontImage, Block, Await, DrawBlock};
+use crate::font::font::{FontFamilyId, FontImage, Block, Await, DrawBlock, FontInfo};
 
 pub struct Brush {
-	faces: SecondaryMap<DefaultKey, Face>,
+	faces: SecondaryMap<DefaultKey, SmallVec<[Option<Face>; 1]> >,
+	default_family: Atom,
 }
 
 impl Brush {
 	pub fn new() -> Self {
 		Brush {
 			faces: SecondaryMap::default(),
+			default_family: Atom::from("default"),
 		}
 	}
 
-	pub fn check_or_create_face(& mut self, font_id: FontId, font: &Font) {
+	pub fn check_or_create_face(& mut self, font_id: FontFamilyId, font: &FontInfo) {
 		if self.faces.get_mut(*font_id).is_some() {
 			return;
 		}
-		let mut face = match Face::from_family_name(&font.font_family, font.font_size as u32) {
-			Ok(r) => r,
-			Err(_) => Face::from_family_name("default", font.font_size as u32).unwrap()
-		};
-
-		if *font.stroke > 0.0 {
-			face.set_stroker_width(*font.stroke as f64);
+		let mut faces = SmallVec::new();
+		// Face::from_family_name("default", font.font_size as u32).unwrap();
+		for font_family in font.font.font_family.iter().chain([self.default_family.clone()].iter()) {
+			faces.push(match Face::from_family_name(font_family, font.font.font_size as u32) {
+				Ok(mut face) => {
+					if *font.font.stroke > 0.0 {
+						face.set_stroker_width(*font.font.stroke as f64);
+					}
+					Some(face)
+				},
+				Err(_) => None
+			});
 		}
-		self.faces.insert(*font_id, face);
+		self.faces.insert(*font_id, faces);
 		// log::trace!("check_or_create_face!!!========{:?}, {:p}, {:?}", *font_id, &self.faces[*font_id], &self.faces[*font_id]);
 	}
 
-	pub fn height(&mut self, font_id: FontId) -> f32 {
-		
-		let face = &mut self.faces[*font_id];
+	pub fn height(&mut self, font_id: FontFamilyId, font: &FontInfo) -> f32 {
+		let faces = &mut self.faces[*font_id];
 		// log::trace!("height!!!========{:?}, {:p}, {:?}", *font_id, face, face);
 		// face.set_pixel_sizes(font.font_size as u32);
-		let metrics = face.get_global_metrics();
-		metrics.ascender as f32 - metrics.descender as f32
+		for face in faces.iter() {
+			if let Some(face) = face{
+				let metrics = face.get_global_metrics();
+				return metrics.ascender as f32 - metrics.descender as f32
+			}
+		}
+		panic!("font is not exist, font_family={:?}, and default font is none", &font.font.font_family);
+		// let metrics = faces.get_global_metrics();
+		// metrics.ascender as f32 - metrics.descender as f32
 	}
 
-    pub fn width(&mut self, font_id: FontId, char: char) -> f32 {
-		let face = &mut self.faces[*font_id];
-		// if face.get_size() != font.font_size as u32 {
-			// face.set_pixel_sizes(font.font_size as u32);
-		// }
+    pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
+		let faces = &mut self.faces[*font_id];
 	
+		for (index,face) in faces.iter().enumerate() {
+			if let Some(face) = face {
+				if let Ok(metrics) = face.get_metrics(char) {
+					return (metrics.hori_advance as f32, index)
+				}
+			}
+		}
 
-		let metrics = face.get_metrics(char).unwrap();
-		metrics.hori_advance as f32
+		panic!("font is not exist, font_family={:?}, and default font is none", &font.font.font_family);
     }
 
     pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
@@ -57,10 +75,11 @@ impl Brush {
 		mut update: F) {
 		// 修改为异步，TODO
 		for draw_block in draw_list.into_iter() {
-			let face = match self.faces.get_mut(*draw_block.font_id) {
+			let faces = match self.faces.get_mut(*draw_block.font_id) {
 				Some(r) => r,
 				None => return ,
 			};
+			let face = faces[draw_block.font_face_index].as_mut().unwrap();
 			// 绘制
 			// face.set_pixel_sizes(draw_block.font_size as u32);
 			// face.set_stroker_width(*draw_block.font_stroke as f64);
