@@ -13,7 +13,7 @@ use crate::runtime::MULTI_MEDIA_RUNTIME;
 use pi_async_rt::prelude::AsyncRuntime;
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FontCfg {
 	pub name: String,
 	pub metrics: MetricsInfo,

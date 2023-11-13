@@ -329,7 +329,7 @@ impl FontMgr {
 			Some(r) => r,
 			None => return None,
 		};
-		log::debug!("char_texture_size====={:?}, {:?}, {:?}, {:?}", &char, &char_texture_size, tex_position, ff);
+		// log::warn!("char_texture_size====={:?}, {:?}, {:?}, {:?}", &char, &char_texture_size, tex_position, ff);
 		let g = &mut self.sheet.glyphs[*id];
 		g.glyph.width = char_texture_size.width.round();
 		g.glyph.height = char_texture_size.height;
