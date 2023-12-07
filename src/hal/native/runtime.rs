@@ -14,14 +14,25 @@ lazy_static! {
             Ok(r) => usize::from_str_radix(r.as_str(), 10).unwrap(),
             _ => num_cpus::get()
         };
+		// let count = 8;
         let pool = pi_async_rt::prelude::StealableTaskPool::with(count, 0x8000, [1, 1], 3000);
         // 线程池：每个线程1M的栈空间，10ms 休眠，10毫秒的定时器间隔
-        let builder = pi_async_rt::prelude::MultiTaskRuntimeBuilder::new(pool).init_worker_size(count).set_worker_limit(count, count);
+        let builder = pi_async_rt::prelude::MultiTaskRuntimeBuilder::new(pool).thread_prefix("MULTI_MEDIA_RUNTIME").init_worker_size(count).set_worker_limit(count, count);
         builder.build()
     };
 
 	// 渲染运行时，多线程，不需要主动推
     pub static ref RENDER_RUNTIME: pi_async_rt::prelude::MultiTaskRuntime<()>  = {
+		let count = match env::var("_ver") {
+            Ok(r) => usize::from_str_radix(r.as_str(), 10).unwrap(),
+            _ => num_cpus::get()
+        };
+		// let count = 8;
+        let pool = pi_async_rt::prelude::StealableTaskPool::with(count, 0x8000, [1, 1], 3000);
+        // 线程池：每个线程1M的栈空间，10ms 休眠，10毫秒的定时器间隔
+        let builder = pi_async_rt::prelude::MultiTaskRuntimeBuilder::new(pool).thread_prefix("RENDER_RUNTIME").init_worker_size(count).set_worker_limit(count, count);
+        builder.build()
+
         // let count = match env::var("_ver") {
         //     Ok(r) => usize::from_str_radix(r.as_str(), 10).unwrap(),
         //     _ => num_cpus::get()
@@ -30,8 +41,8 @@ lazy_static! {
         // // 线程池：每个线程1M的栈空间，10ms 休眠，10毫秒的定时器间隔
         // let builder = pi_async_rt::prelude::MultiTaskRuntimeBuilder::new(pool).init_worker_size(count).set_worker_limit(count, count);
         // builder.build()
-		let rt = pi_async_rt::prelude::AsyncRuntimeBuilder::default_multi_thread(Some("RENDER_RUNTIME"), None, None, None);
-    	rt
+		// let rt = pi_async_rt::prelude::AsyncRuntimeBuilder::default_multi_thread(Some("RENDER_RUNTIME"), None, None, None);
+    	// rt
     };
 }
 
@@ -47,7 +58,7 @@ lazy_static! {
 		// runner.startup().unwrap()
     };
 
-	// 渲染运行时，多线程，不需要主动推
+	// 渲染运行时，单线程，不需要主动推
 	pub static ref RENDER_RUNTIME:  pi_async_rt::prelude::SingleTaskRuntime = {
 		// 渲染运行时，多线程，不需要主动推
 		let runner:  pi_async_rt::prelude::SingleTaskRunner<()> = pi_async_rt::prelude::SingleTaskRunner::default();
