@@ -126,11 +126,14 @@ pub struct GlyphSheet {
 	glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
 	glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 	
-	base_glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
-	base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
+	base_glyph_id_map: XHashMap<(FontFamilyId, char), BaseCharDesc>,
+	// base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
 
 	text_packer: TextPacker,
 	size: Size<usize>,
+
+	default_sdf_char: Vec<(Atom, char)>,
+
 }
 
 impl GlyphSheet {
@@ -158,9 +161,10 @@ impl FontMgr {
 				glyph_id_map: XHashMap::default(), 
 				glyphs: SlotMap::default(), 
 				base_glyph_id_map: XHashMap::default(),
-				base_glyphs: SlotMap::default(),
+				// base_glyphs: SlotMap::default(),
 				text_packer: TextPacker::new(width as usize, height as usize),
-				size: Size {width, height}
+				size: Size {width, height},
+				default_sdf_char: Vec::default(),
 			},
 			brush: FontBrush::new(),
 			use_sdf: false,
@@ -268,7 +272,7 @@ impl FontMgr {
 		};
 
 		let font = &mut self.sheet.fonts[*f];
-		let ff = font.font.font_family_string.clone();
+		// let ff = font.font.font_family_string.clone();
 		let mut max_height = font.max_height;
 		let char_texture_size = if self.use_sdf {
 			let (glyph_info, index) = match self.brush.sdf_brush.glyph_info(base_font_id, font, char) {
@@ -356,6 +360,9 @@ impl FontMgr {
 
 	/// 取到字形信息
 	pub fn glyph(&self, id: GlyphId) -> &Glyph {
+		if self.sheet.glyphs.get(*id).is_none() {
+			panic!("glyph is not exist, {:?}", id);
+		}
 		&self.sheet.glyphs[*id].glyph
 	}
 
@@ -472,16 +479,34 @@ impl FontMgr {
 		let font_face_id = self.create_font_face(&font_face);
 		let font_family_id = self.font_family_id(Font::new(font_face.clone(), BASE_FONT_SIZE, 500, unsafe{ NotNan::new_unchecked(0.0)}));
 		let glyph_id = self.glyph_id(font_family_id, char).unwrap();
-		self.brush.sdf_brush.add_default_char(font_face_id, glyph_id, font_face, char);
+		self.brush.sdf_brush.add_default_char(font_face_id, glyph_id, font_face.clone(), char);
+		self.default_sdf_char.push((font_face, char));
 	}
 
 	/// 清理字形信息
 	pub fn clear(&mut self) {
-		self.sheet.fonts.clear();
-		self.sheet.fonts_map.clear();
+		for  info in self.sheet.fonts.values_mut() {
+			info.await_info.size = Size {width: 0, height: 0};
+			info.await_info.wait_list.clear();
+		}
+		// self.sheet.fonts_map.clear();
 		self.sheet.glyph_id_map.clear();
 		self.sheet.glyphs.clear();
 		self.sheet.text_packer.clear();
+
+		// 添加默认字符
+		for (font_face, c) in self.default_sdf_char.clone().into_iter() {
+			self.add_sdf_default_char(font_face, c);
+		}
+
+
+		// glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
+		// glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
+		
+		// base_glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
+		// base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
+
+		// text_packer: TextPacker,
 	}
 
 	// /// 取到纹理
@@ -517,20 +542,18 @@ impl FontMgr {
 		let font = &self.sheet.fonts[*base_font_id];
 		match self.sheet.base_glyph_id_map.entry((base_font_id, char)) {
 			Entry::Occupied(r) => {
-				let g = &self.sheet.base_glyphs[**r.get()];
+				let g = r.get();
 				(g.width, g.font_face_index)
 			},
 			Entry::Vacant(r) => {
 				let (mut width, index) = self.brush.width(base_font_id, font, char, self.use_sdf);
 
-				// 分配GlyphId
-				let id = GlyphId(self.sheet.base_glyphs.insert(BaseCharDesc{
+				r.insert(BaseCharDesc{
 					font_id: base_font_id,
 					char,
 					width,
 					font_face_index: index,
-				}));
-				r.insert(id);
+				});
 
 				// 如果是ascii字符， 其粗体文字的宽度会适当加宽（浏览器实验所得结果）
 				let is_blod = char.is_ascii() && font.font.font_weight >= BLOD_WEIGHT;

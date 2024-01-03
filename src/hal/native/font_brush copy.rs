@@ -1,6 +1,5 @@
-
+// 此版本，因为频繁的创建fontface很费， 暂不使用
 use pi_atom::Atom;
-use pi_hash::XHashMap;
 use pi_share::ThreadSync;
 use pi_slotmap::{SecondaryMap, DefaultKey};
 use font_kit::{font::Face, util::{ WritePixel, Rgba}};
@@ -9,9 +8,7 @@ use smallvec::SmallVec;
 use crate::font::font::{FontFamilyId, FontImage, Block, Await, DrawBlock, FontInfo};
 
 pub struct Brush {
-	faces: SecondaryMap<DefaultKey, (SmallVec<[Option<usize>; 1]>, usize, f32) >,
-	base_faces: Vec<(Face, usize, f32)>,
-	base_faces_map: XHashMap<Atom, usize>,
+	faces: SecondaryMap<DefaultKey, SmallVec<[Option<Face>; 1]> >,
 	default_family: Atom,
 }
 
@@ -19,8 +16,6 @@ impl Brush {
 	pub fn new() -> Self {
 		Brush {
 			faces: SecondaryMap::default(),
-			base_faces: Vec::new(),
-			base_faces_map: XHashMap::default(),
 			default_family: Atom::from("default"),
 		}
 	}
@@ -32,27 +27,19 @@ impl Brush {
 		let mut faces = SmallVec::new();
 		// Face::from_family_name("default", font.font_size as u32).unwrap();
 		for font_family in font.font.font_family.iter().chain([self.default_family.clone()].iter()) {
-			// let time = pi_time::Instant::now();
-			match self.base_faces_map.entry(font_family.clone()) {
-				std::collections::hash_map::Entry::Occupied(r) => {
-					faces.push(Some(*r.get()))
+			let time = pi_time::Instant::now();
+			faces.push(match Face::from_family_name(font_family, font.font.font_size as u32) {
+				Ok(mut face) => {
+					if *font.font.stroke > 0.0 {
+						face.set_stroker_width(*font.font.stroke as f64);
+					}
+					Some(face)
 				},
-				std::collections::hash_map::Entry::Vacant(_) => {
-					let index = match Face::from_family_name(font_family, 32) {
-						Ok(face) => {
-							self.base_faces.push((face, 32, 0.0));
-							let index = self.base_faces.len() - 1;
-							self.base_faces_map.insert(font_family.clone(), index);
-							Some(index)
-						},
-						Err(_) => None
-					};
-					faces.push(index);
-				},
-			}
-			// log::warn!("font face======font_id={:?},{:?}, {:?}, {:?}", font_id, font_family, font, pi_time::Instant::now() - time);
+				Err(_) => None
+			});
+			log::warn!("font face======font_id={:?},{:?}, {:?}, {:?}", font_id, font_family, font, pi_time::Instant::now() - time);
 		}
-		self.faces.insert(*font_id, (faces, font.font.font_size, *font.font.stroke));
+		self.faces.insert(*font_id, faces);
 		// log::trace!("check_or_create_face!!!========{:?}, {:p}, {:?}", *font_id, &self.faces[*font_id], &self.faces[*font_id]);
 	}
 
@@ -60,14 +47,9 @@ impl Brush {
 		let faces = &mut self.faces[*font_id];
 		// log::trace!("height!!!========{:?}, {:p}, {:?}", *font_id, face, face);
 		// face.set_pixel_sizes(font.font_size as u32);
-		for face in faces.0.iter() {
-			if let Some(face) = face {
-				let face = &mut self.base_faces[*face];
-				if faces.1 != face.1 {
-					face.1 = faces.1;
-					face.0.set_pixel_sizes(faces.1 as u32);
-				}
-				let metrics = face.0.get_global_metrics();
+		for face in faces.iter() {
+			if let Some(face) = face{
+				let metrics = face.get_global_metrics();
 				return metrics.ascender as f32 - metrics.descender as f32
 			}
 		}
@@ -79,15 +61,9 @@ impl Brush {
     pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
 		let faces = &mut self.faces[*font_id];
 	
-		for (index,face) in faces.0.iter().enumerate() {
+		for (index,face) in faces.iter().enumerate() {
 			if let Some(face) = face {
-				let face = &mut self.base_faces[*face];
-				if faces.1 != face.1 {
-					face.1 = faces.1;
-					face.0.set_pixel_sizes(faces.1 as u32);
-				}
-
-				if let Ok(metrics) = face.0.get_metrics(char) {
+				if let Ok(metrics) = face.get_metrics(char) {
 					return (metrics.hori_advance as f32, index)
 				}
 			}
@@ -106,27 +82,15 @@ impl Brush {
 				Some(r) => r,
 				None => return ,
 			};
-			let face = faces.0[draw_block.font_face_index].as_mut().unwrap();
+			let face = faces[draw_block.font_face_index].as_mut().unwrap();
 			// 绘制
 			// face.set_pixel_sizes(draw_block.font_size as u32);
 			// face.set_stroker_width(*draw_block.font_stroke as f64);
 
-			let face = &mut self.base_faces[*face];
-			// log::warn!("font size =====================font_size={:?}, {:?}", faces.1,  face.1);
-			if face.1 != faces.1 {
-				face.1 = faces.1;
-				face.0.set_pixel_sizes(faces.1 as u32);
-			}
-
-			if face.2 != faces.2 {
-				face.2 = faces.2;
-				face.0.set_stroker_width(faces.2 as f64);
-			}
-
 			let (block, image) = draw_sync(
 				draw_block.chars, 
 				draw_block.block,
-				&mut face.0,
+				face,
 				*draw_block.font_stroke as f64
 			);
 

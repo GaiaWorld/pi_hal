@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.16"
+version = "0.1.17"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["pi", "hal"]
 
 [dependencies]
+pi_time = "0.3"
 # pi_share = {version="0.4", features=["serial"]}
 smallvec = { version = "1.8", features = ["serde"] }
 image = "0.24"

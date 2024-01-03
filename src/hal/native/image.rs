@@ -134,6 +134,12 @@ pub async fn from_path_or_url(path: &str) -> DynamicImage {
 }
 
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
-    let v = create_async_value(path);
-    image::load_from_memory(&v.await)
+	let v = create_async_value(path);
+	// 此处需要放在多线程运行时中解码(当前运行时可能不是一个多线程运行时)
+	let wait = MULTI_MEDIA_RUNTIME.wait::<Result<DynamicImage, ImageError>>();
+	wait.spawn(MULTI_MEDIA_RUNTIME.clone(), None, async move {
+		Ok(image::load_from_memory(&v.await))
+	})
+	.unwrap();
+	wait.wait_result().await.unwrap()
 }
