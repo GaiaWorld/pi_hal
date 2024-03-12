@@ -2,6 +2,7 @@
 
 use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry, mem::transmute};
 
+use parry2d::bounding_volume::Aabb;
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
@@ -23,7 +24,7 @@ pub use pi_sdf::glyphy::blob::TexInfo;
 
 pub struct Sdf2Table {
 	pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontId
-	pub max_boxs: SecondaryMap<DefaultKey, pi_shape::plane::aabb::Aabb>, // DefaultKey为FontId
+	pub max_boxs: SecondaryMap<DefaultKey, Aabb>, // DefaultKey为FontId
 	// text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
 	// blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
@@ -322,7 +323,7 @@ impl Sdf2Table {
 		let result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>)>)>> = Share::new(ShareMutex::new((0, texture_data)));
 		let async_value = AsyncValue::new();
 
-		let max_boxs: &'static SecondaryMap<DefaultKey,  pi_shape::plane::aabb::Aabb> = unsafe { transmute(&self.max_boxs) };
+		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
 		for glyph_visitor in outline_infos.drain(..) {
 			let async_value1 = async_value.clone();
