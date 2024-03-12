@@ -254,7 +254,7 @@ impl SdfTable {
 			MULTI_MEDIA_RUNTIME.spawn(async move {
 				let v = create_async_value(&chars.0, &chars.1);
 				let buffers: Vec<Vec<u8>> = v.await;
-				let mut lock = result1.lock();
+				let mut lock = result1.lock().unwrap();
 				log::debug!("load========={:?}, {:?}", lock.0, len);
 				lock.1[index] = Some(buffers);
 				lock.0 += 1;
@@ -266,7 +266,7 @@ impl SdfTable {
 		MULTI_MEDIA_RUNTIME.spawn(async move {
 			log::debug!("load1=========");
 			async_value.await;
-			let mut lock = result.lock();
+			let mut lock = result.lock().unwrap();
 			let r = &mut lock.1;
 			log::debug!("load2========={:?}", r.len());
 	
@@ -531,7 +531,7 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 	let r = AsyncValue::new();
 	let k = lock.insert(r.clone());
 	if let Some(cb) = LOAD_CB_SDF.0.get() {
-		cb(k, font.get_hash(), chars);
+		cb(k, font.str_hash(), chars);
 	} else {
 	}
 	r
