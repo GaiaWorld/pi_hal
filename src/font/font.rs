@@ -8,7 +8,6 @@ use std::{
 use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
 use pi_hash::XHashMap;
-use pi_null::Null;
 use pi_slotmap::{DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
 
@@ -395,7 +394,7 @@ impl FontMgr {
 	}
 
 	// 添加sdf配置
-	pub fn add_sdf_default_char(&mut self, font_face: Atom, char: char) {
+	pub fn add_sdf_default_char(&mut self, _font_face: Atom, _char: char) {
 		// let font_face_id = self.create_font_face(&font_face);
 		// let font_family_id = self.font_family_id(Font::new(font_face.clone(), BASE_FONT_SIZE, 500, unsafe{ NotNan::new_unchecked(0.0)}));
 		// let glyph_id = self.glyph_id(font_family_id, char).unwrap();

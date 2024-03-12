@@ -1,13 +1,13 @@
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
 
-use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::{HashMap, hash_map::Entry}, mem::transmute};
+use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry, mem::transmute};
 
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::{font::FontFace, glyphy::blob::BlobArc};
-use pi_share::{ThreadSync, ShareMutex, Share};
+use pi_sdf::font::FontFace;
+use pi_share::{ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
@@ -24,16 +24,16 @@ pub use pi_sdf::glyphy::blob::TexInfo;
 pub struct Sdf2Table {
 	pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontId
 	pub max_boxs: SecondaryMap<DefaultKey, pi_shape::plane::aabb::Aabb>, // DefaultKey为FontId
-	text_infos: SecondaryMap<DefaultKey, TexInfo>,
+	// text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
-	blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
+	// blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
 
 	glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
 	pub glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 
 	pub(crate) index_packer: TextPacker,
 	pub data_packer: TextPacker,
-	pub(crate) size: Size<usize>,
+	// pub(crate) size: Size<usize>,
 }
 
 impl Sdf2Table {
@@ -41,8 +41,8 @@ impl Sdf2Table {
 		Self {
 			fonts: Default::default(),
 			max_boxs: Default::default(),
-			text_infos: Default::default(),
-			blob_arcs: Default::default(),
+			// text_infos: Default::default(),
+			// blob_arcs: Default::default(),
 
 			glyph_id_map: XHashMap::default(),
 			glyphs: SlotMap::default(),
@@ -50,10 +50,10 @@ impl Sdf2Table {
 
 			index_packer: TextPacker::new(width, height),
 			data_packer: TextPacker::new(width, height),
-			size: Size {
-				width,
-				height
-			},
+			// size: Size {
+			// 	width,
+			// 	height
+			// },
 		}
 	}
 
@@ -336,7 +336,7 @@ impl Sdf2Table {
 				let (info, index_tex) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
 				
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
-				let mut lock = result1.lock();
+				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
 				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
 				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex));
@@ -355,7 +355,7 @@ impl Sdf2Table {
 		let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
 		let glyphs: &'static mut SlotMap<DefaultKey, GlyphIdDesc> = unsafe { transmute(&mut self.glyphs)};
 
-		let mut lock = result.lock();
+		let mut lock = result.lock().unwrap();
 		let r = &mut lock.1;
 		log::debug!("sdf2 load2========={:?}", r.len());
 
@@ -483,7 +483,7 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 	let r = AsyncValue::new();
 	let k = lock.insert(r.clone());
 	if let Some(cb) = LOAD_CB_SDF.0.get() {
-		cb(k, font.get_hash(), chars);
+		cb(k, font.str_hash(), chars);
 	} else {
 	}
 	r
