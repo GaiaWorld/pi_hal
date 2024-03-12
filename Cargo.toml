@@ -46,7 +46,7 @@ web-sys = {version = "0.3", features = [
 	"ImageData"
 ]}
 js-sys = "0.3"
-pi_sdf = {git = "https://github.com/GaiaWorld/pi_sdf.git"}
+pi_sdf = {version = "0.1", registry = "yn"}
 # basis-universal = { path = "F:/project/rust_crates/basis-universal"}
 ahash = "=0.8.6"
 buddy-alloc = "0.5"
