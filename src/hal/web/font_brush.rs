@@ -2,7 +2,7 @@ use std::mem::transmute;
 
 use pi_slotmap::{SecondaryMap, DefaultKey};
 use wasm_bindgen::JsCast;
-use crate::{font::font::{FontFamilyId, Font, FontImage, Block, Await, DrawBlock, FontInfo}, measureText};
+use crate::{font::font::{FontFamilyId, Font, FontImage, Block, Await, DrawBlock, FontInfo, BASE_FONT_SIZE}, measureText};
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use pi_share::ThreadSync;
 
@@ -32,22 +32,22 @@ impl Brush {
 		}
 	}
 
-	pub fn check_or_create_face(&mut self, font_id: FontFamilyId, font: &FontInfo) {
-		self.fonts.insert((*font_id).clone(), font.font.clone());
+	pub fn check_or_create_face(&mut self, font: &FontInfo) {
+		self.fonts.insert(font.font_family_id.0, font.font.clone());
 	}
 
-	pub fn height(&mut self, font_id: FontFamilyId, font: &FontInfo) -> f32 {
-		let font = &mut self.fonts[*font_id];
-		getGlobalMetricsHeight(font.font_family_string.get_hash() as u32, font.font_size as f32) as f32
+	pub fn base_height(&mut self, font: &FontInfo) -> f32 {
+		let font = &mut self.fonts[*font.font_family_id];
+		getGlobalMetricsHeight(font.font_family_string.get_hash() as u32, BASE_FONT_SIZE as f32) as f32
 	}
 
-    pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
-		let font = match self.fonts.get_mut(*font_id) {
+    pub fn base_width(&mut self, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
+		let font = match self.fonts.get_mut(*font.font_family_id) {
 			Some(r) => r,
 			None => return (0.0, 0),
 		};
 		let ch_code: u32 = unsafe { transmute(char) };
-		(measureText(&self.ctx, ch_code, font.font_size as u32, font.font_family_string.get_hash() as u32), 0/*在web上，font face索引并不重要*/)
+		(measureText(&self.ctx, ch_code, BASE_FONT_SIZE as u32, font.font_family_string.get_hash() as u32), 0/*在web上，font face索引并不重要*/)
     }
 
     pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(

@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell};
+use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry};
 
 use pi_async_rt::prelude::AsyncValue;
 use pi_atom::Atom;
@@ -7,7 +7,7 @@ use pi_share::{ThreadSync, ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
 
-use super::font::{FontFamilyId, Block, FontImage, DrawBlock, FontInfo, FontId, GlyphId};
+use super::{font::{FontId, Block, FontImage, DrawBlock, FontInfo, FontFaceId, GlyphId, GlyphIdDesc, Size, Glyph, OFFSET_RANGE, FontFamilyId}, text_pack::TextPacker};
 
 use crate::runtime::MULTI_MEDIA_RUNTIME;
 use pi_async_rt::prelude::AsyncRuntime;
@@ -20,22 +20,45 @@ pub struct FontCfg {
 	pub glyphs: XHashMap<char, GlyphInfo>, // msdf才会有，字符纹理宽度
 }
 
-#[derive(Default, Debug)]
-pub struct SdfBrush {
+pub struct SdfTable {
 	fonts_glyph: SecondaryMap<DefaultKey, FontCfg>, // DefaultKey为FontId
-	pub(crate) default_char: Option<(MetricsInfo, GlyphInfo, Atom, char, FontId, GlyphId)>,
+	pub(crate) default_char: Option<(MetricsInfo, GlyphInfo, Atom, char, FontFaceId, GlyphId)>,
+
+	glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
+	glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
+	// base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
+	// base_glyph_id_map: XHashMap<(FontId, char), BaseCharDesc>,
+
+	pub(crate) text_packer: TextPacker,
 }
 
-impl SdfBrush {
+impl SdfTable {
+	pub fn new(width: usize, height: usize) -> Self {
+		Self {
+			fonts_glyph: SecondaryMap::default(),
+			default_char: None,
+			glyph_id_map: Default::default(),
+			glyphs: Default::default(),
+			// base_glyph_id_map: Default::default(),
+			text_packer: TextPacker::new(width, height),
+		}
+	}
+	/// 取到字形信息
+	pub fn glyph(&self, id: GlyphId) -> &Glyph {
+		if self.glyphs.get(*id).is_none() {
+			panic!("glyph is not exist, {:?}", id);
+		}
+		&self.glyphs[*id].glyph
+	}
 
 	// 添加sdf配置
-	pub fn add_cfg(&mut self, font_id: FontId, font_cfg: FontCfg) {
+	pub fn add_cfg(&mut self, font_id: FontFaceId, font_cfg: FontCfg) {
 		self.fonts_glyph.insert(font_id.0, font_cfg);
 	}
 
 	// 添加默认字符
 	// 早调用此方法之前，保证改字体的配置已经就绪
-	pub fn add_default_char(&mut self, font_id: FontId, glyph_id: GlyphId, name: Atom, char: char) {
+	pub fn add_default_char(&mut self, font_id: FontFaceId, glyph_id: GlyphId, name: Atom, char: char) {
 		if let Some(r) = self.fonts_glyph.get(font_id.0) {
 			if let Some(glyph_info) = r.glyphs.get(&char) {
 				self.default_char = Some((r.metrics.clone(), glyph_info.clone(), name, char, font_id, glyph_id));
@@ -45,7 +68,7 @@ impl SdfBrush {
 		log::info!("add default char fail, char or font is not exist, char={:?}, font={:?}", char, font_id);
 	}
 
-	pub fn height(&mut self, _font_id: FontFamilyId, font: &FontInfo) -> (f32, f32/*max_height*/) {
+	pub fn height(&mut self, _font_id: FontId, font: &FontInfo) -> (f32, f32/*max_height*/) {
 		let mut ret = (0.0, 0.0);
 		for font_id in font.font_ids.iter() {
 			if let Some(r) = self.fonts_glyph.get(font_id.0) {
@@ -68,10 +91,10 @@ impl SdfBrush {
 		};
 	}
 
-	pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize) {
-		let (info, metrics, index) = match self.info(font_id, font, char) {
+	pub fn width(&mut self, font: &FontInfo, char: char) -> (f32, usize) {
+		let (info, metrics, index) = match Self::info(font, char, &self.fonts_glyph) {
 			Some(r) => r,
-			None => match self.info(font_id, font, '□') {
+			None => match Self::info(font, '□', &self.fonts_glyph) {
 				Some(r) => r,
 				None => match &self.default_char {
 					Some(r) => (&r.1, &r.0, font.font.font_family.len()),
@@ -84,9 +107,99 @@ impl SdfBrush {
 	}
 
 	
-	pub fn glyph_info(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> Option<(&GlyphInfo, usize)> {
-		let info = self.info(font_id, font, char);
+	pub fn glyph_info<'a>(font: &FontInfo, char: char, font_cfg: &'a SecondaryMap<DefaultKey, FontCfg>) -> Option<(&'a GlyphInfo, usize)> {
+		let info = Self::info(font, char, font_cfg);
 		info.as_ref().map(|r| (r.0, r.2))
+	}
+
+	pub fn glyph_id(&mut self, f: FontId, font_info: &mut FontInfo, char: char) -> Option<GlyphId> {
+		let id = match self.glyph_id_map.entry((font_info.font_family_id, char)) {
+			Entry::Occupied(r) => {
+				let id = r.get().clone();
+				return Some(id);
+			},
+			Entry::Vacant(r) => {
+				// 分配GlyphId
+				let id = GlyphId(self.glyphs.insert(GlyphIdDesc{
+					font_id: f,
+					char,
+					font_face_index: 0,
+					glyph: Glyph {
+						x: 0.0, 
+						y: 0.0, 
+						ox: 0.0,
+						oy: 0.0,
+						width: 0.0, 
+						height: 0.0,
+						advance: 0.0,},
+				}));
+
+				r.insert(id).clone()
+			}
+		};
+
+		// let ff = font.font.font_family_string.clone();
+		let mut max_height = font_info.max_height;
+		let char_texture_size: Size<f32> = {
+			let (glyph_info, index) = match Self::glyph_info(font_info, char, &self.fonts_glyph) {
+				Some(r) => {
+					font_info.await_info.wait_list.push(id);
+					r
+				},
+				None => {
+					if char == '□' {
+						if let Some(r) = &self.default_char {
+							return Some(r.5); // 显示默认字符
+						} 
+						return None;
+					} else {
+						match self.glyph_id(f, font_info, '□') {
+							Some(id) => {
+								self.glyph_id_map.insert((font_info.font_family_id, char), id);
+								return Some(id);
+							},
+							None => {
+								self.glyph_id_map.remove(&(font_info.font_family_id, char));
+								return None;
+							},
+						};
+					}
+				},
+			};
+
+			let glyph = &mut self.glyphs[id.0];
+			glyph.font_face_index = index;
+			glyph.glyph.ox = glyph_info.ox as f32 / OFFSET_RANGE;
+			glyph.glyph.oy = glyph_info.oy as f32 / OFFSET_RANGE;
+			glyph.glyph.advance = glyph_info.advance as f32;
+			max_height = glyph_info.height as f32;
+			// sdf的文字纹理， 不需要加上描边宽度， 也不需要间隔, 直接从配置中取到
+			Size {
+				width: glyph_info.width as f32,
+				height: glyph_info.height as f32 ,
+			}
+		};
+		// 在纹理中分配一个位置
+		let tex_position = self.text_packer.alloc(
+			char_texture_size.width.ceil() as usize, 
+			max_height.ceil() as usize);
+		let tex_position = match tex_position {
+			Some(r) => r,
+			None => return None,
+		};
+		// log::warn!("char_texture_size====={:?}, {:?}, {:?}, {:?}", &char, &char_texture_size, tex_position, ff);
+		let g = &mut self.glyphs[*id];
+		g.glyph.width = char_texture_size.width.round();
+		g.glyph.height = char_texture_size.height;
+		g.glyph.x = tex_position.x as f32;
+		g.glyph.y = tex_position.y as f32;
+
+		// 放入等待队列, 并统计等待队列的总宽度
+		font_info.await_info.size.width += g.glyph.width.ceil() as usize;
+		font_info.await_info.size.height += g.glyph.height.ceil() as usize;
+		font_info.await_info.wait_list.push(id);
+
+		Some(id)
 	}
 
 	pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
@@ -302,7 +415,7 @@ impl SdfBrush {
 		// }
 	}
 
-	pub fn metrics_info(&self, font_id: &FontId) -> &MetricsInfo {
+	pub fn metrics_info(&self, font_id: &FontFaceId) -> &MetricsInfo {
 		if let Some(r) = self.fonts_glyph.get(font_id.0) {
 			return  &r.metrics;
 		};
@@ -312,10 +425,10 @@ impl SdfBrush {
 		panic!("");
 	}
 
-	fn info(&mut self, _font_id: FontFamilyId, font: &FontInfo, char: char) -> Option<(&GlyphInfo, &MetricsInfo, usize)> {
+	fn info<'a>(font: &FontInfo, char: char,  font_cfg: &'a SecondaryMap<DefaultKey, FontCfg>) -> Option<(&'a GlyphInfo, &'a MetricsInfo, usize)> {
 		for (index, font_id) in font.font_ids.iter().enumerate() {
 			
-			if let Some(r) = self.fonts_glyph.get(font_id.0) {
+			if let Some(r) = font_cfg.get(font_id.0) {
 				if let Some(glyph_info) = r.glyphs.get(&char) {
 					return  Some((glyph_info, &r.metrics, index));
 				}

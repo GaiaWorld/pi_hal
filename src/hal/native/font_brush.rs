@@ -6,7 +6,7 @@ use pi_slotmap::{SecondaryMap, DefaultKey};
 use font_kit::{font::Face, util::{ WritePixel, Rgba}};
 use smallvec::SmallVec;
 
-use crate::font::font::{FontFamilyId, FontImage, Block, Await, DrawBlock, FontInfo};
+use crate::font::font::{FontImage, Block, Await, DrawBlock, FontInfo};
 
 pub struct Brush {
 	faces: SecondaryMap<DefaultKey, (SmallVec<[Option<usize>; 1]>, usize, f32) >,
@@ -25,8 +25,8 @@ impl Brush {
 		}
 	}
 
-	pub fn check_or_create_face(& mut self, font_id: FontFamilyId, font: &FontInfo) {
-		if self.faces.get_mut(*font_id).is_some() {
+	pub fn check_or_create_face(& mut self, font: &FontInfo) {
+		if self.faces.get_mut(*font.font_family_id).is_some() {
 			return;
 		}
 		let mut faces = SmallVec::new();
@@ -52,12 +52,12 @@ impl Brush {
 			}
 			// log::warn!("font face======font_id={:?},{:?}, {:?}, {:?}", font_id, font_family, font, pi_time::Instant::now() - time);
 		}
-		self.faces.insert(*font_id, (faces, font.font.font_size, *font.font.stroke));
+		self.faces.insert(*font.font_family_id, (faces, 32, 0.0));
 		// log::trace!("check_or_create_face!!!========{:?}, {:p}, {:?}", *font_id, &self.faces[*font_id], &self.faces[*font_id]);
 	}
 
-	pub fn height(&mut self, font_id: FontFamilyId, font: &FontInfo) -> f32 {
-		let faces = &mut self.faces[*font_id];
+	pub fn base_height(&mut self, font: &FontInfo) -> f32 {
+		let faces = &mut self.faces[*font.font_family_id];
 		// log::trace!("height!!!========{:?}, {:p}, {:?}", *font_id, face, face);
 		// face.set_pixel_sizes(font.font_size as u32);
 		for face in faces.0.iter() {
@@ -76,8 +76,8 @@ impl Brush {
 		// metrics.ascender as f32 - metrics.descender as f32
 	}
 
-    pub fn width(&mut self, font_id: FontFamilyId, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
-		let faces = &mut self.faces[*font_id];
+    pub fn base_width(&mut self, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
+		let faces = &mut self.faces[*font.font_family_id];
 	
 		for (index,face) in faces.0.iter().enumerate() {
 			if let Some(face) = face {
@@ -112,15 +112,14 @@ impl Brush {
 			// face.set_stroker_width(*draw_block.font_stroke as f64);
 
 			let face = &mut self.base_faces[*face];
-			// log::warn!("font size =====================font_size={:?}, {:?}", faces.1,  face.1);
-			if face.1 != faces.1 {
-				face.1 = faces.1;
-				face.0.set_pixel_sizes(faces.1 as u32);
+			if face.1 != draw_block.font_size {
+				face.1 = draw_block.font_size;
+				face.0.set_pixel_sizes(draw_block.font_size as u32);
 			}
 
-			if face.2 != faces.2 {
-				face.2 = faces.2;
-				face.0.set_stroker_width(faces.2 as f64);
+			if face.2 != *draw_block.font_stroke {
+				face.2 = *draw_block.font_stroke;
+				face.0.set_stroker_width(*draw_block.font_stroke as f64);
 			}
 
 			let (block, image) = draw_sync(
