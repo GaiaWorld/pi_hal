@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.19"
+version = "0.1.20"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -47,7 +47,7 @@ web-sys = {version = "0.3", features = [
 js-sys = "0.3"
 pi_sdf = {version = "0.1", registry = "yn"}
 # basis-universal = { path = "F:/project/rust_crates/basis-universal"}
-ahash = "=0.8.6"
+ahash = "0.8"
 buddy-alloc = "0.5"
 parry2d = "0.13"
 guillotiere = { version = "0.6" }
