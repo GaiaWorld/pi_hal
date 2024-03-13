@@ -4,7 +4,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use pi_async_rt::rt::AsyncValue;
+use pi_async_rt::rt::AsyncValueNonBlocking as AsyncValue;
 
 pub use image::{DynamicImage, ImageError};
 use pi_atom::Atom;

@@ -1,6 +1,6 @@
 use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry};
 
-use pi_async_rt::prelude::AsyncValue;
+use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_share::{ThreadSync, ShareMutex, Share};
