@@ -38,7 +38,7 @@ impl Brush {
 
 	pub fn base_height(&mut self, font: &FontInfo) -> f32 {
 		let font = &mut self.fonts[*font.font_family_id];
-		getGlobalMetricsHeight(font.font_family_string.get_hash() as u32, BASE_FONT_SIZE as f32) as f32
+		getGlobalMetricsHeight(font.font_family_string.str_hash() as u32, BASE_FONT_SIZE as f32) as f32
 	}
 
     pub fn base_width(&mut self, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
@@ -47,7 +47,7 @@ impl Brush {
 			None => return (0.0, 0),
 		};
 		let ch_code: u32 = unsafe { transmute(char) };
-		(measureText(&self.ctx, ch_code, BASE_FONT_SIZE as u32, font.font_family_string.get_hash() as u32), 0/*在web上，font face索引并不重要*/)
+		(measureText(&self.ctx, ch_code, BASE_FONT_SIZE as u32, font.font_family_string.str_hash() as u32), 0/*在web上，font face索引并不重要*/)
     }
 
     pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
@@ -86,7 +86,7 @@ fn draw_sync(list: Vec<Await>, block: &Block, font: &Font, stroke: f64, canvas: 
 		ctx,
 		font.font_weight as u32,
 		font.font_size as u32,
-		font.font_family_string.get_hash() as u32,
+		font.font_family_string.str_hash() as u32,
 		stroke as u8,
 	);
 	if stroke > 0.0 {

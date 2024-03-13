@@ -14,12 +14,12 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 	// 	false
 	// };
 	
-	let id = path.get_hash() as u32;
+	let id = path.str_hash() as u32;
 	if hasAtom(id) == false {
 		setAtom(id, path.to_string());
 	}
 
-	match loadImageAsCanvas(path.get_hash() as u32).await {
+	match loadImageAsCanvas(path.str_hash() as u32).await {
 		Ok(r) => {
 			let ctx = web_sys::CanvasRenderingContext2d::from(r);
 			let canvas = ctx.canvas().unwrap();
