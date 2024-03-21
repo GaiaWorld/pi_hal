@@ -1,0 +1,8 @@
+[net]
+git-fetch-with-cli = true   # 使用 `git` 可执行文件进行 git 操作
+
+[target.'cfg(target_os = "android")']
+rustflags = [
+    "-C", "link-arg=-landroid",
+    "-C", "link-arg=-llog",
+]

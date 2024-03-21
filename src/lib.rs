@@ -9,3 +9,5 @@ pub mod font;
 pub mod loader;
 
 pub use hal::*;
+pub use pi_sdf;
+

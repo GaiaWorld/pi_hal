@@ -62,7 +62,7 @@ empty=[]
 single_thread = [] # 本地平台，设置该feature有效，运行时为单线程运行时
 web_local_load = []
 
-# [patch.yn]
-# pi_sdf = {path="../pi_sdf"}
+[patch.yn]
+pi_sdf = {path="../pi_sdf"}
 
 

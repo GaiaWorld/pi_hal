@@ -2,12 +2,12 @@
 
 use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry, mem::transmute};
 
-use parry2d::bounding_volume::Aabb;
+use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::font::FontFace;
+use pi_sdf::{font::FontFace, shape::ArcOutline, svg::compute_near_arc_impl};
 use pi_share::{ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
@@ -35,6 +35,8 @@ pub struct Sdf2Table {
 	pub(crate) index_packer: TextPacker,
 	pub data_packer: TextPacker,
 	// pub(crate) size: Size<usize>,
+	pub svg: pi_sdf::shape::SvgScenes,
+	pub shapes: XHashMap<u64, TexInfo>
 }
 
 impl Sdf2Table {
@@ -55,6 +57,8 @@ impl Sdf2Table {
 			// 	width,
 			// 	height
 			// },
+			svg: pi_sdf::shape::SvgScenes::new( Aabb::new(Point::new(0.0, 0.0), Point::new(400.0, 400.0))),
+			shapes: XHashMap::default(),
 		}
 	}
 
@@ -418,6 +422,124 @@ impl Sdf2Table {
 			glyphs[glyph_id].glyph = text_info;
 
 			log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
+			
+		}
+	
+	}
+
+	pub fn set_view_box(&mut self, mins_x: f32,mins_y: f32,maxs_x: f32,maxs_y: f32, ){
+		self.svg.view_box = Aabb::new(Point::new(mins_x, mins_y), Point::new(maxs_x, maxs_y))
+	}
+
+
+	// 添加字体
+	pub fn add_shape(&mut self, shape: Box<dyn ArcOutline>)->u64 {
+		self.svg.add_shape(shape)
+	}
+
+	/// 更新字形信息（计算圆弧信息）
+	pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>>> {
+		let await_count = self.svg.shapes.len();
+
+		let texture_data = Vec::with_capacity(await_count);
+		let result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>> = Share::new(ShareMutex::new((0, texture_data)));
+		let async_value = AsyncValue::new();
+
+		let max_boxs = self.svg.view_box.clone();
+		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+		for (hash, shape) in self.svg.shapes.drain() {
+			let async_value1 = async_value.clone();
+			let result1 = result.clone();
+			MULTI_MEDIA_RUNTIME.spawn(async move {
+				// let hash = shape.get_hash();
+				let (mut blod_arc, map) = compute_near_arc_impl(max_boxs, shape.get_arc_endpoints());
+
+				let data_tex = blod_arc.encode_data_tex1(&map);
+				// println!("data_map: {}", map.len());
+				let (info, index_tex) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+				
+				// log::debug!("load========={:?}, {:?}", lock.0, len);
+				let mut lock = result1.lock().unwrap();
+				lock.0 += 1;
+				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
+				lock.1.push((hash, info, data_tex, index_tex));
+				if lock.0 == await_count {
+					log::trace!("encode_data_tex1");
+					async_value1.set(result1.clone());
+					log::trace!("encode_data_tex2");
+				}
+			}).unwrap();
+		}
+		async_value
+	}
+
+	pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(&mut self, mut update: F, result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>>) {
+		let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer)};
+		let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
+		let shapes: &'static mut XHashMap<u64, TexInfo> = unsafe { transmute(&mut self.shapes)};
+
+		let mut lock = result.lock().unwrap();
+		let r = &mut lock.1;
+		log::debug!("sdf2 load2========={:?}", r.len());
+
+		while let Some((hash, mut text_info, mut data_tex, index_tex)) = r.pop() {
+			// 索引纹理更新
+			let index_tex_position = index_packer.alloc(
+			text_info.grid_w as usize, 
+			text_info.grid_h as usize);
+			let index_position = match index_tex_position {
+				Some(r) => r,
+				None => panic!("aaaa================"),
+			};
+			let index_img = FontImage {
+				width: text_info.grid_w as usize,
+				height: text_info.grid_h as usize,
+				buffer: index_tex,
+			};
+			text_info.index_offset = (index_position.x, index_position.y);
+			let index_block = Block {
+				x: index_position.x as f32,
+				y: index_position.y as f32,
+				width: index_img.width as f32,
+				height: index_img.height as f32,
+			};
+			// log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
+			(update.clone())(index_block, index_img);
+
+			// 数据纹理更新
+			let data_len = data_tex.len() / 4;
+			let mut patch = 8.0 - data_len as f32 % 8.0;
+			while patch > 0.0 {
+				data_tex.extend_from_slice(&[0, 0, 0, 0]); // 补0
+				patch -= 1.0;
+			}
+
+			let h = (data_len as f32 / 8.0).ceil() as usize;
+			let data_img = FontImage {
+				width: 8,
+				height: h,
+				buffer: data_tex,
+			};
+			let data_position = data_packer.alloc(
+				data_img.height,
+				data_img.width);
+			let data_position = match data_position {
+				Some(r) => r,
+				None => panic!("bbb================"),
+			};
+			text_info.data_offset = (data_position.y, data_position.x);
+			let data_block = Block {
+				x: data_position.y as f32,
+				y: data_position.x as f32,
+				width: data_img.width as f32,
+				height: data_img.height as f32,
+			};
+			// log::warn!("update data tex========={:?}", (&data_block, data_img.width, data_img.height, data_img.buffer.len(), data_len, p1) );
+			update(data_block, data_img);
+
+			shapes.insert(hash, text_info);
+
+			// log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
 			
 		}
 	
