@@ -433,8 +433,8 @@ impl Sdf2Table {
 
 
 	// 添加字体
-	pub fn add_shape(&mut self, shape: Box<dyn ArcOutline>)->u64 {
-		self.svg.add_shape(shape)
+	pub fn add_shape(&mut self, hash: u64, shape: Box<dyn ArcOutline>) {
+		self.svg.add_shape(hash, shape)
 	}
 
 	/// 更新字形信息（计算圆弧信息）
