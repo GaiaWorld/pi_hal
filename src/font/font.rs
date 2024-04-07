@@ -22,7 +22,7 @@ pub struct Size<T> {
 	pub height: T,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Block {
 	pub y: f32, 
 	pub x: f32, 
@@ -32,6 +32,12 @@ pub struct Block {
 
 pub struct FontImage {
 	pub buffer: Vec<u8>,
+	pub width: usize,
+	pub height: usize,
+}
+
+pub struct ShadowImage {
+	pub minimip: Vec<Vec<u8>>,
 	pub width: usize,
 	pub height: usize,
 }

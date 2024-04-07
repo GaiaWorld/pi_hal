@@ -2,18 +2,19 @@
 
 use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry, mem::transmute};
 
+use nalgebra::Point2;
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::{font::FontFace, shape::ArcOutline, svg::compute_near_arc_impl};
+use pi_sdf::{font::FontFace, shape::{ArcOutline, FARWAY}, svg::compute_near_arc_impl, glyphy::geometry::aabb::AabbEXT};
 use pi_share::{ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
 
-use crate::runtime::MULTI_MEDIA_RUNTIME;
+use crate::{runtime::MULTI_MEDIA_RUNTIME, font::font::ShadowImage};
 use pi_async_rt::prelude::AsyncRuntime;
 pub use pi_sdf::glyphy::blob::TexInfo;
 
@@ -292,7 +293,7 @@ impl Sdf2Table {
 	// }
 
 	/// 更新字形信息（计算圆弧信息）
-	pub fn draw_await(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>)>)>>> {
+	pub fn draw_await(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,)>)>>> {
 		let mut await_count = 0;
 		for (_, font_info) in fonts.iter() {
 			await_count += font_info.await_info.wait_list.len();
@@ -324,7 +325,7 @@ impl Sdf2Table {
 		}
 
 		let texture_data = Vec::with_capacity(await_count);
-		let result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>)>)>> = Share::new(ShareMutex::new((0, texture_data)));
+		let result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>> = Share::new(ShareMutex::new((0, texture_data)));
 		let async_value = AsyncValue::new();
 
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
@@ -338,13 +339,13 @@ impl Sdf2Table {
 
 				let data_tex = blod_arc.encode_data_tex1(&map);
 				// println!("data_map: {}", map.len());
-				let (info, index_tex) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+				let (info, index_tex,sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
 				
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
 				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
-				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex));
+				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
 				if lock.0 == await_count {
 					log::trace!("encode_data_tex1");
 					async_value1.set(result1.clone());
@@ -355,7 +356,7 @@ impl Sdf2Table {
 		async_value
 	}
 
-	pub fn update<F: FnMut(Block, FontImage) + Clone + 'static>(&mut self, mut update: F, result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>)>)>>) {
+	pub fn update<F: FnMut(Block, FontImage) + Clone + 'static,  F1: FnMut(Block, ShadowImage) + Clone + 'static>(&mut self, mut update: F, mut updtae_shadow: F1, result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>)>)>>) {
 		let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer)};
 		let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
 		let glyphs: &'static mut SlotMap<DefaultKey, GlyphIdDesc> = unsafe { transmute(&mut self.glyphs)};
@@ -364,7 +365,7 @@ impl Sdf2Table {
 		let r = &mut lock.1;
 		log::debug!("sdf2 load2========={:?}", r.len());
 
-		while let Some((glyph_id, mut text_info, mut data_tex, index_tex)) = r.pop() {
+		while let Some((glyph_id, mut text_info, mut data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3)) = r.pop() {
 			// 索引纹理更新
 			let index_tex_position = index_packer.alloc(
 			text_info.grid_w as usize, 
@@ -387,6 +388,14 @@ impl Sdf2Table {
 			};
 			// log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
 			(update.clone())(index_block, index_img);
+
+			// 更新阴影纹理
+			let shadow_img = ShadowImage {
+				width: text_info.grid_w as usize,
+				height: text_info.grid_h as usize,
+				minimip: vec![sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3]
+			};
+			updtae_shadow(index_block, shadow_img);
 
 			// 数据纹理更新
 			let data_len = data_tex.len() / 4;
@@ -437,32 +446,38 @@ impl Sdf2Table {
 		self.svg.add_shape(hash, shape)
 	}
 
+	pub fn has_shape(&mut self, hash: u64) ->bool {
+		self.svg.shapes.get(&hash).is_some()
+	}
+
 	/// 更新字形信息（计算圆弧信息）
-	pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>>> {
+	pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>)>)>>> {
 		let await_count = self.svg.shapes.len();
 
 		let texture_data = Vec::with_capacity(await_count);
-		let result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>> = Share::new(ShareMutex::new((0, texture_data)));
+		let result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>> = Share::new(ShareMutex::new((0, texture_data)));
 		let async_value = AsyncValue::new();
 
-		let max_boxs = self.svg.view_box.clone();
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
 		for (hash, shape) in self.svg.shapes.drain() {
 			let async_value1 = async_value.clone();
 			let result1 = result.clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
 				// let hash = shape.get_hash();
-				let (mut blod_arc, map) = compute_near_arc_impl(max_boxs, shape.get_arc_endpoints());
+				let extents = shape.extents();
+				println!("extents: {:?}", extents);
+				let (mut blod_arc, map) = compute_near_arc_impl(extents, shape.get_arc_endpoints(), shape.is_area());
 
 				let data_tex = blod_arc.encode_data_tex1(&map);
-				// println!("data_map: {}", map.len());
-				let (info, index_tex) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-				
+				println!("data_map: {}", map.len());
+				let (mut info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+				info.binding_box = shape.binding_box();
+				info.extents = extents;
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
 				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
-				lock.1.push((hash, info, data_tex, index_tex));
+				lock.1.push((hash, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
 				if lock.0 == await_count {
 					log::trace!("encode_data_tex1");
 					async_value1.set(result1.clone());
@@ -473,7 +488,7 @@ impl Sdf2Table {
 		async_value
 	}
 
-	pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(&mut self, mut update: F, result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>)>)>>) {
+	pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static, F1: FnMut(Block, ShadowImage) + Clone + 'static>(&mut self, mut update: F, mut updtae_shadow: F1, result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,)>)>>) {
 		let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer)};
 		let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
 		let shapes: &'static mut XHashMap<u64, TexInfo> = unsafe { transmute(&mut self.shapes)};
@@ -482,7 +497,7 @@ impl Sdf2Table {
 		let r = &mut lock.1;
 		log::debug!("sdf2 load2========={:?}", r.len());
 
-		while let Some((hash, mut text_info, mut data_tex, index_tex)) = r.pop() {
+		while let Some((hash, mut text_info,mut data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3)) = r.pop() {
 			// 索引纹理更新
 			let index_tex_position = index_packer.alloc(
 			text_info.grid_w as usize, 
@@ -505,6 +520,14 @@ impl Sdf2Table {
 			};
 			// log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
 			(update.clone())(index_block, index_img);
+
+			// 更新阴影纹理
+			let shadow_img = ShadowImage {
+				width: text_info.grid_w as usize,
+				height: text_info.grid_h as usize,
+				minimip: vec![sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3]
+			};
+			updtae_shadow(index_block, shadow_img);
 
 			// 数据纹理更新
 			let data_len = data_tex.len() / 4;
