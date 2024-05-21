@@ -130,7 +130,7 @@ pub fn from_memory(buf: &[u8]) -> Result<(Vec<u8>, u32, u32), image::ImageError>
 
 pub async fn from_path_or_url(path: &str) -> DynamicImage {
     let v = create_async_value(path);
-    image::load_from_memory(&v.await).unwrap()
+    image::load_from_memory(&v.await.unwrap()).unwrap()
 }
 
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
@@ -138,7 +138,13 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 	// 此处需要放在多线程运行时中解码(当前运行时可能不是一个多线程运行时)
 	let wait = MULTI_MEDIA_RUNTIME.wait::<Result<DynamicImage, ImageError>>();
 	wait.spawn(MULTI_MEDIA_RUNTIME.clone(), None, async move {
-		Ok(image::load_from_memory(&v.await))
+        let r = match v.await {
+            Ok(r) => r,
+            Err(e) => {
+                return Ok(Err(ImageError::IoError(std::io::Error::other(e))));
+            }
+        };
+		Ok(image::load_from_memory(&r))
 	})
 	.unwrap();
 	wait.wait_result().await.unwrap()
