@@ -5,7 +5,6 @@ use std::{
 
 use parking_lot::Mutex;
 use pi_async_rt::rt::AsyncValueNonBlocking as AsyncValue;
-use pi_sdf::glyphy::blob::Res;
 
 pub mod compressed_texture;
 pub mod file;
