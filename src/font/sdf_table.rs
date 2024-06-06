@@ -1,6 +1,6 @@
 use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry};
 
-// use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
+use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_share::{ThreadSync, ShareMutex, Share};
@@ -10,7 +10,7 @@ use serde::{Serialize, Deserialize};
 use super::{font::{FontId, Block, FontImage, DrawBlock, FontInfo, FontFaceId, GlyphId, GlyphIdDesc, Size, Glyph, OFFSET_RANGE, FontFamilyId}, text_pack::TextPacker};
 
 use crate::runtime::MULTI_MEDIA_RUNTIME;
-use pi_async_rt::{prelude::AsyncRuntime, rt::AsyncValue};
+use pi_async_rt::prelude::AsyncRuntime;
 
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

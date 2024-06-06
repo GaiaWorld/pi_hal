@@ -4,7 +4,7 @@ use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::E
 
 use nalgebra::Point2;
 use parry2d::{bounding_volume::Aabb, math::Point};
-// use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
+use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
@@ -15,7 +15,7 @@ use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
 
 use crate::{runtime::MULTI_MEDIA_RUNTIME, font::font::ShadowImage};
-use pi_async_rt::{prelude::AsyncRuntime, rt::AsyncValue};
+use pi_async_rt::prelude::AsyncRuntime;
 pub use pi_sdf::glyphy::blob::TexInfo;
 
 // /// 二维装箱
