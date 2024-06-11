@@ -293,46 +293,61 @@ impl Sdf2Table {
 	// }
 
 	/// 更新字形信息（计算圆弧信息）
-	pub fn draw_await(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>,)>)>>> {
+	pub fn draw_await(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>, result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>>, index: usize) -> AsyncValue<()> {
+		
 		let mut await_count = 0;
 		for (_, font_info) in fonts.iter() {
 			await_count += font_info.await_info.wait_list.len();
 		}
 
+		let async_value = AsyncValue::new();
+		if await_count == 0 {
+			async_value.clone().set(());
+			// println!("encode_data_texzzzzz===={:?}, {:?}", index, await_count);
+			return async_value;
+		}
+
 		// 轮廓信息（贝塞尔曲线）
 		let mut outline_infos = Vec::with_capacity(await_count);
+		let mut chars = Vec::new();
 		
 		// let mut sdf_all_draw_slotmap = Vec::new();
 		// let mut f = Vec::new();
 		// 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
-		for (_, font_info) in fonts.iter_mut() {
-			let await_info = &mut font_info.await_info;
-			if await_info.wait_list.len() == 0 {
-				continue;
-			}
+		if await_count != 0 {
 
-			for glyph_id in await_info.wait_list.drain(..) {
-				let g = &self.glyphs[*glyph_id];
-				// font_face_index不存在， 不需要计算
-				if g.font_face_index.is_null() {
+		
+			for (_, font_info) in fonts.iter_mut() {
+				let await_info = &mut font_info.await_info;
+				if await_info.wait_list.len() == 0 {
 					continue;
 				}
-				let font_face_id = font_info.font_ids[g.font_face_index];
-				if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-					outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
+
+				for glyph_id in await_info.wait_list.drain(..) {
+					let g = &self.glyphs[*glyph_id];
+					// font_face_index不存在， 不需要计算
+					if g.font_face_index.is_null() {
+						continue;
+					}
+					let font_face_id = font_info.font_ids[g.font_face_index];
+					if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
+						outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
+						chars.push(g.char)
+					}
 				}
 			}
 		}
 
-		let texture_data = Vec::with_capacity(await_count);
-		let result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>> = Share::new(ShareMutex::new((0, texture_data)));
-		let async_value = AsyncValue::new();
+		result.lock().unwrap().1 = Vec::with_capacity(await_count);
 
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
+		let mut ll = outline_infos.len();
+		// println!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
 		for glyph_visitor in outline_infos.drain(..) {
 			let async_value1 = async_value.clone();
 			let result1 = result.clone();
+			// println!("encode_data_tex===={:?}", index);
 			MULTI_MEDIA_RUNTIME.spawn(async move {
 				
 				let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
@@ -344,14 +359,17 @@ impl Sdf2Table {
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
+				// println!("encode_data_tex0===={:?}", (index, ll));
 				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
 				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
 				if lock.0 == await_count {
 					log::trace!("encode_data_tex1");
-					async_value1.set(result1.clone());
+					async_value1.set(());
+					// println!("encode_data_tex1===={}", index);
 					log::trace!("encode_data_tex2");
 				}
 			}).unwrap();
+			ll += 1;
 		}
 		async_value
 	}
