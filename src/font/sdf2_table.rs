@@ -1,6 +1,6 @@
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
 
-use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry, mem::transmute};
+use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{mpsc::channel, Arc, Mutex, OnceLock}};
 
 use nalgebra::Point2;
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -8,13 +8,13 @@ use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::{font::FontFace, shape::{ArcOutline, FARWAY}, svg::compute_near_arc_impl, glyphy::geometry::aabb::AabbEXT};
+use pi_sdf::{font::{FontFace, SdfInfo}, glyphy::geometry::aabb::AabbEXT, shape::{ArcOutline, FARWAY}, svg::compute_near_arc_impl};
 use pi_share::{ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
 
-use crate::{runtime::MULTI_MEDIA_RUNTIME, font::font::ShadowImage};
+use crate::{font::font::ShadowImage, runtime::MULTI_MEDIA_RUNTIME, stroe::{self, init_local_store}};
 use pi_async_rt::prelude::AsyncRuntime;
 pub use pi_sdf::glyphy::blob::TexInfo;
 
@@ -42,6 +42,7 @@ pub struct Sdf2Table {
 
 impl Sdf2Table {
 	pub fn new(width: usize, height: usize) -> Self {
+		
 		Self {
 			fonts: Default::default(),
 			max_boxs: Default::default(),
@@ -310,7 +311,7 @@ impl Sdf2Table {
 		// 轮廓信息（贝塞尔曲线）
 		let mut outline_infos = Vec::with_capacity(await_count);
 		let mut chars = Vec::new();
-		
+		let mut keys = Vec::new();
 		// let mut sdf_all_draw_slotmap = Vec::new();
 		// let mut f = Vec::new();
 		// 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
@@ -332,6 +333,7 @@ impl Sdf2Table {
 					let font_face_id = font_info.font_ids[g.font_face_index];
 					if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
 						outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
+						keys.push(format!("{}{}", g.char, font_info.font.font_family[g.font_face_index].as_str()));
 						chars.push(g.char)
 					}
 				}
@@ -342,25 +344,38 @@ impl Sdf2Table {
 
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
 		let mut ll = outline_infos.len();
+	
 		// println!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
 		for glyph_visitor in outline_infos.drain(..) {
 			let async_value1 = async_value.clone();
 			let result1 = result.clone();
 			// println!("encode_data_tex===={:?}", index);
+			let key = keys[ll].clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
-				
-				let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
+				log::error!("cpmputer sdf");
+				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
+					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
+					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
+				}else{
+					let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
-				let data_tex = blod_arc.encode_data_tex1(&map);
-				// println!("data_map: {}", map.len());
-				let (info, index_tex,sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+					let data_tex = blod_arc.encode_data_tex1(&map);
+					// println!("data_map: {}", map.len());
+					let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+					let sdf = SdfInfo{tex_info: info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size:blod_arc.grid_size() };
+					let buffer = bincode::serialize(&sdf).unwrap();
+					stroe::write(key, buffer).await;
+					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
+					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
+				};
 				
+				log::error!("cpmputer sdf2=");
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
 				// println!("encode_data_tex0===={:?}", (index, ll));
-				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
+				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, grid_size, await_count, info);
 				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
 				if lock.0 == await_count {
 					log::trace!("encode_data_tex1");
@@ -368,6 +383,7 @@ impl Sdf2Table {
 					// println!("encode_data_tex1===={}", index);
 					log::trace!("encode_data_tex2");
 				}
+				log::error!("cpmputer sdf3");
 			}).unwrap();
 			ll += 1;
 		}
@@ -488,9 +504,9 @@ impl Sdf2Table {
 
 				let data_tex = blod_arc.encode_data_tex1(&map);
 				println!("data_map: {}", map.len());
-				let (mut info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-				info.binding_box = shape.binding_box();
-				info.extents = extents;
+				let ( info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+				// info.binding_box = shape.binding_box();
+				// info.extents = extents;
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
@@ -631,6 +647,13 @@ pub type ShareCb = Arc<dyn Cb>;
 
 
 pub fn init_load_cb(cb: ShareCb) {
+	let (sender, receiver) = channel();
+	log::error!("init_load_cb");
+	MULTI_MEDIA_RUNTIME.spawn(async move {
+		init_local_store().await;
+		sender.send(0).unwrap();
+	}).unwrap();
+	let _ = receiver.recv().unwrap();
     match LOAD_CB_SDF.0.set(cb) {
 		Ok(r) => r,
 		Err(_e) => panic!("LOAD_CB_SDF.set")

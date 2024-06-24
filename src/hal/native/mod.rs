@@ -11,7 +11,7 @@ pub mod file;
 pub mod font_brush;
 pub mod image;
 pub mod runtime;
-
+pub mod stroe;
 // pub use basis_universal::TranscoderTextureFormat::*;
 
 lazy_static! {

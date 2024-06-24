@@ -6,6 +6,7 @@ pub mod image;
 pub mod font_brush;
 pub mod runtime;
 pub mod file;
+pub mod stroe;
 #[cfg(feature="web_local_load")]
 pub mod web_local;
 
@@ -32,6 +33,25 @@ extern "C" {
     pub fn useVao() -> bool;
     pub fn hasAtom(key: u32) -> bool;
     pub fn setAtom(key: u32, v: String);
+    pub fn int(key: u32, v: String);
+
+    pub async fn initLocalStore  ();
+    
+    /**
+     * 从indexDb读数据
+     */
+    // tslint:disable-next-line:no-reserved-keywords
+    pub async fn get (key: String) -> Result<JsValue, JsValue>;
+    
+    /**
+     * 往indexDb写数据
+     */
+    pub async fn write  (key: String, data: Vec<u8>);
+    
+    /**
+     * 从indexDb删除数据
+     */
+    pub async fn deleteKey(key: String);
 }
 
 #[cfg(feature="web_local_load")]
