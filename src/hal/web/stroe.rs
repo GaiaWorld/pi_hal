@@ -1,6 +1,6 @@
 use crate::initLocalStore;
 
-pub async  fn init_local_store (){
+pub async fn init_local_store (){
     initLocalStore().await;
 }
     
@@ -10,7 +10,12 @@ pub async  fn init_local_store (){
 // tslint:disable-next-line:no-reserved-keywords
 pub async fn get (key: String) -> Option<Vec<u8>>{
     match super::get(key).await{
-        Ok(r) => return Some(js_sys::Uint8Array::from(r).to_vec()),
+        Ok(r) => {
+            // log::error!("r: {:?}", )
+            if r.is_undefined() || r.is_null(){
+                return None;
+            }
+            return Some(js_sys::Uint8Array::from(r).to_vec())},
         Err(_) => None,
     }
     

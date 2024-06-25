@@ -1,6 +1,6 @@
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
 
-use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{mpsc::channel, Arc, Mutex, OnceLock}};
+use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
 
 use nalgebra::Point2;
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -18,6 +18,7 @@ use crate::{font::font::ShadowImage, runtime::MULTI_MEDIA_RUNTIME, stroe::{self,
 use pi_async_rt::prelude::AsyncRuntime;
 pub use pi_sdf::glyphy::blob::TexInfo;
 
+static IS_FIRST: AtomicBool = AtomicBool::new(true);
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -37,12 +38,21 @@ pub struct Sdf2Table {
 	pub data_packer: TextPacker,
 	// pub(crate) size: Size<usize>,
 	pub svg: pi_sdf::shape::SvgScenes,
-	pub shapes: XHashMap<u64, TexInfo>
+	pub shapes: XHashMap<u64, TexInfo>,
+	pub init_load: Arc<AtomicBool>,
 }
 
 impl Sdf2Table {
 	pub fn new(width: usize, height: usize) -> Self {
-		
+		let init_load = Arc::new(AtomicBool::new(false));
+		let init_load_copy = init_load.clone();
+		MULTI_MEDIA_RUNTIME.spawn(async move {
+			log::error!("init_local_store start");
+			init_local_store().await;
+			log::error!("init_local_store end");
+			init_load_copy.store(true, Ordering::Relaxed);
+		});
+
 		Self {
 			fonts: Default::default(),
 			max_boxs: Default::default(),
@@ -61,7 +71,10 @@ impl Sdf2Table {
 			// },
 			svg: pi_sdf::shape::SvgScenes::new( Aabb::new(Point::new(0.0, 0.0), Point::new(400.0, 400.0))),
 			shapes: XHashMap::default(),
+			init_load
 		}
+
+		
 	}
 
 	pub fn data_packer_size(&self) -> Size<usize> {
@@ -316,8 +329,6 @@ impl Sdf2Table {
 		// let mut f = Vec::new();
 		// 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
 		if await_count != 0 {
-
-		
 			for (_, font_info) in fonts.iter_mut() {
 				let await_info = &mut font_info.await_info;
 				if await_info.wait_list.len() == 0 {
@@ -343,7 +354,7 @@ impl Sdf2Table {
 		result.lock().unwrap().1 = Vec::with_capacity(await_count);
 
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
-		let mut ll = outline_infos.len();
+		let mut ll = 0;
 	
 		// println!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
@@ -353,11 +364,13 @@ impl Sdf2Table {
 			// println!("encode_data_tex===={:?}", index);
 			let key = keys[ll].clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
-				log::error!("cpmputer sdf");
+				
 				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
+					// log::error!("load_store: {}", key);
 					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				}else{
+					// log::error!("computer sdf: {}", key);
 					let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
 					let data_tex = blod_arc.encode_data_tex1(&map);
@@ -370,7 +383,6 @@ impl Sdf2Table {
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				};
 				
-				log::error!("cpmputer sdf2=");
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
@@ -383,7 +395,6 @@ impl Sdf2Table {
 					// println!("encode_data_tex1===={}", index);
 					log::trace!("encode_data_tex2");
 				}
-				log::error!("cpmputer sdf3");
 			}).unwrap();
 			ll += 1;
 		}
@@ -504,9 +515,10 @@ impl Sdf2Table {
 
 				let data_tex = blod_arc.encode_data_tex1(&map);
 				println!("data_map: {}", map.len());
-				let ( info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-				// info.binding_box = shape.binding_box();
-				// info.extents = extents;
+				let (mut info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+				let binding_box = shape.binding_box();
+				info.binding_box = (binding_box.mins.x, binding_box.mins.y, binding_box.maxs.x, binding_box.maxs.y);
+				info.extents = (extents.mins.x, extents.mins.y, extents.maxs.x, extents.maxs.y);
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
@@ -647,13 +659,6 @@ pub type ShareCb = Arc<dyn Cb>;
 
 
 pub fn init_load_cb(cb: ShareCb) {
-	let (sender, receiver) = channel();
-	log::error!("init_load_cb");
-	MULTI_MEDIA_RUNTIME.spawn(async move {
-		init_local_store().await;
-		sender.send(0).unwrap();
-	}).unwrap();
-	let _ = receiver.recv().unwrap();
     match LOAD_CB_SDF.0.set(cb) {
 		Ok(r) => r,
 		Err(_e) => panic!("LOAD_CB_SDF.set")

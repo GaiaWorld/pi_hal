@@ -100,29 +100,29 @@ export function setAtom(key, v) {
 
 }
 
-export const initLocalStore = () => {
-	return Promise.resolve()
+export function initLocalStore()  {
+	// return Promise.resolve(new Uint8Array(0))
 };
 
 /**
  * 从indexDb读数据
  */
 // tslint:disable-next-line:no-reserved-keywords
-export const get = (key) => {
+export function get (key)  {
 	return Promise.resolve(new Uint8Array(0))
 };
 
 /**
  * 往indexDb写数据
  */
-export const write = (key, data) => {
-	return Promise.resolve()
+export function write  (key, data)  {
+	// return Promise.resolve()
 };
 
 /**
  * 从indexDb删除数据
  */
-export const deleteKey = (key) => {
-	return Promise.resolve()
+export function deleteKey (key) {
+	// return Promise.resolve()
 };
 

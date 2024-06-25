@@ -35,18 +35,18 @@ extern "C" {
     pub fn setAtom(key: u32, v: String);
     pub fn int(key: u32, v: String);
 
-    pub async fn initLocalStore  ();
-    
+    pub async fn initLocalStore();
     /**
      * 从indexDb读数据
      */
     // tslint:disable-next-line:no-reserved-keywords
+    #[wasm_bindgen(catch)]
     pub async fn get (key: String) -> Result<JsValue, JsValue>;
     
     /**
      * 往indexDb写数据
      */
-    pub async fn write  (key: String, data: Vec<u8>);
+    pub async fn write (key: String, data: Vec<u8>);
     
     /**
      * 从indexDb删除数据

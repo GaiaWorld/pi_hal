@@ -1,6 +1,5 @@
 use std::{
-    io::Error,
-    ops::{Deref, DerefMut},
+    hash::{DefaultHasher, Hash, Hasher}, io::Error, ops::{Deref, DerefMut}
 };
 
 pub use image::{DynamicImage, ImageError};
@@ -12,7 +11,7 @@ use pi_async_rt::rt::AsyncRuntime;
 use pi_atom::Atom;
 use pi_share::Share;
 
-use crate::create_async_value;
+use crate::{create_async_value, Arg};
 
 use super::runtime::MULTI_MEDIA_RUNTIME;
 
@@ -129,12 +128,16 @@ pub fn from_memory(buf: &[u8]) -> Result<(Vec<u8>, u32, u32), image::ImageError>
 }
 
 pub async fn from_path_or_url(path: &str) -> DynamicImage {
-    let v = create_async_value(path);
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    let v = create_async_value("file", "", hasher.finish(), vec![Arg::String(path.to_string())]);
     image::load_from_memory(&v.await.unwrap()).unwrap()
 }
 
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
-	let v = create_async_value(path);
+	let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    let v = create_async_value("file", "", hasher.finish(), vec![Arg::String(path.to_string())]);
 	// 此处需要放在多线程运行时中解码(当前运行时可能不是一个多线程运行时)
 	let wait = MULTI_MEDIA_RUNTIME.wait::<Result<DynamicImage, ImageError>>();
 	wait.spawn(MULTI_MEDIA_RUNTIME.clone(), None, async move {
