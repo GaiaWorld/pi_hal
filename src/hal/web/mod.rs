@@ -7,6 +7,7 @@ pub mod font_brush;
 pub mod runtime;
 pub mod file;
 pub mod stroe;
+pub mod svg;
 #[cfg(feature="web_local_load")]
 pub mod web_local;
 
@@ -52,6 +53,27 @@ extern "C" {
      * 从indexDb删除数据
      */
     pub async fn deleteKey(key: String);
+
+    pub fn createFace(data: Vec<u8>) -> JsValue;
+    pub fn computerSdf(max_box: &[f32], outline: JsValue) -> JsValue;
+    pub fn horizontalAdvance(face: JsValue, text: String) -> f32;
+    pub fn ascender(face: JsValue) -> f32;
+    pub fn descender(face: JsValue) -> f32;
+    pub fn maxBox(face: JsValue)-> JsValue;
+    pub fn maxBoxNormaliz(face: JsValue)-> JsValue;
+    pub fn toOutline(face: JsValue, text: String) ->JsValue;
+    pub fn debugSize(face: JsValue) -> usize;
+
+    pub fn createCircle(cx: f32, cy: f32, radius: f32) -> JsValue;
+    pub fn createRect(x: f32, y: f32, width: f32, height: f32) -> JsValue;
+    pub fn createSegment(ax: f32, ay: f32, bx: f32, by: f32) -> JsValue;
+    pub fn createEllipse(cx: f32, cy: f32, rx: f32, ry: f32) -> JsValue;
+    pub fn createPolygon(points: Vec<f32>) -> JsValue;
+    pub fn createPolyline(points: Vec<f32>) -> JsValue;
+    pub fn createPath(verb: Vec<u8>, points: Vec<f32>) -> JsValue;
+    pub fn getSvgInfo(shape: JsValue) -> JsValue;
+    pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
+    pub fn free(obj: JsValue) -> JsValue;
 }
 
 #[cfg(feature="web_local_load")]

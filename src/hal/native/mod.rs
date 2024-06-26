@@ -12,6 +12,7 @@ pub mod font_brush;
 pub mod image;
 pub mod runtime;
 pub mod stroe;
+pub mod svg;
 // pub use basis_universal::TranscoderTextureFormat::*;
 
 pub enum Arg {

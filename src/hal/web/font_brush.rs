@@ -1,12 +1,16 @@
 use std::mem::transmute;
 
+
+use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_slotmap::{SecondaryMap, DefaultKey};
-use wasm_bindgen::JsCast;
-use crate::{font::font::{FontFamilyId, Font, FontImage, Block, Await, DrawBlock, FontInfo, BASE_FONT_SIZE}, measureText};
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::{JsCast, JsValue};
+use crate::{ascender, computerSdf, descender, font::font::{Await, Block, DrawBlock, Font, FontFamilyId, FontImage, FontInfo, BASE_FONT_SIZE}, horizontalAdvance, maxBox, maxBoxNormaliz, measureText};
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use pi_share::ThreadSync;
+use crate::createFace;
 
-use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight};
+use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight, toOutline, debugSize};
 
 pub struct Brush {
 	fonts: SecondaryMap<DefaultKey, Font>,
@@ -103,4 +107,96 @@ fn draw_sync(list: Vec<Await>, block: &Block, font: &Font, stroke: f64, canvas: 
 		}
 	}
 }
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct TexInfo {
+    pub grid_w: f32,
+    pub grid_h: f32,
+
+    pub cell_size: f32,
+
+    pub max_offset: usize,
+    pub min_sdf: f32,
+    pub sdf_step: f32,
+    
+    pub index_offset_x: usize,
+    pub index_offset_y: usize,
+    pub data_offset_x: usize,
+    pub data_offset_y: usize,
+    pub char: char,
+    pub extents_min_x: f32,
+    pub extents_min_y: f32,
+    pub extents_max_x: f32,
+    pub extents_max_y: f32, 
+    pub binding_box_min_x: f32,
+    pub binding_box_min_y: f32,
+    pub binding_box_max_x: f32,
+    pub binding_box_max_y: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct SdfInfo {
+    pub tex_info: TexInfo,
+    pub data_tex: Vec<u8>,
+    pub index_tex: Vec<u8>,
+    pub sdf_tex1: Vec<u8>,
+    pub sdf_tex2: Vec<u8>,
+    pub sdf_tex3: Vec<u8>,
+    pub sdf_tex4: Vec<u8>,
+    pub grid_size: Vec<f32>,
+}
+
+pub struct FontFace(JsValue);
+
+impl FontFace{
+	pub fn new(font_data: Vec<u8>) -> Self{
+		FontFace(createFace(font_data))
+	}
+
+	pub fn compute_sdf(max_box: Aabb, sink: JsValue) -> SdfInfo {
+		let max_box = [max_box.mins.x, max_box.mins.y, max_box.maxs.x, max_box.maxs.y];
+		let v = computerSdf(&max_box, sink);
+		let buf = js_sys::Uint8Array::from(v).to_vec();
+
+		let sdf_info: SdfInfo = bincode::deserialize(&buf[..]).unwrap();
+		sdf_info
+    }
+
+    /// 水平宽度
+    pub fn horizontal_advance(&mut self, char: char) -> f32 {
+        return horizontalAdvance(self.0.clone(), char.to_string())
+    }
+
+    pub fn ascender(&self) -> f32 {
+        return ascender(self.0.clone())
+    }
+
+    pub fn descender(&self) -> f32 {
+		return descender(self.0.clone())
+    }
+
+    pub fn max_box(&self) -> Aabb {
+		let v= maxBox(self.0.clone());
+
+		let arr = js_sys::Float32Array::from(v);
+        Aabb::new(Point::new(arr.get_index(0), arr.get_index(1)), Point::new(arr.get_index(2), arr.get_index(3)))
+    }
+
+
+
+    pub fn max_box_normaliz(&self) -> Aabb {
+		let v= maxBoxNormaliz(self.0.clone());
+		let arr = js_sys::Float32Array::from(v);
+        Aabb::new(Point::new(arr.get_index(0), arr.get_index(1)), Point::new(arr.get_index(2), arr.get_index(3)))
+    }
+
+	pub fn to_outline(&self, c: char) -> JsValue {
+		toOutline(self.0.clone(), c.to_string())
+    }
+
+	pub fn debug_size(&self) -> usize {
+		debugSize(self.0.clone())
+    }
+}
+
 

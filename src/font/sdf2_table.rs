@@ -2,23 +2,22 @@
 
 use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
 
-use nalgebra::Point2;
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::{font::{FontFace, SdfInfo}, glyphy::geometry::aabb::AabbEXT, shape::{ArcOutline, FARWAY}, svg::compute_near_arc_impl};
+// use pi_sdf::shape::ArcOutline;
 use pi_share::{ShareMutex, Share};
 use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
 
-use crate::{font::font::ShadowImage, runtime::MULTI_MEDIA_RUNTIME, stroe::{self, init_local_store}};
+use crate::{font::font::ShadowImage, font_brush::{FontFace, SdfInfo}, svg::{SvgInfo, computer_svg_sdf}, runtime::MULTI_MEDIA_RUNTIME, stroe::{self, init_local_store}};
 use pi_async_rt::prelude::AsyncRuntime;
-pub use pi_sdf::glyphy::blob::TexInfo;
+pub use crate::font_brush::TexInfo;
 
-static IS_FIRST: AtomicBool = AtomicBool::new(true);
+// static IS_FIRST: AtomicBool = AtomicBool::new(true);
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -37,7 +36,7 @@ pub struct Sdf2Table {
 	pub(crate) index_packer: TextPacker,
 	pub data_packer: TextPacker,
 	// pub(crate) size: Size<usize>,
-	pub svg: pi_sdf::shape::SvgScenes,
+	pub svg: XHashMap<u64, SvgInfo>,
 	pub shapes: XHashMap<u64, TexInfo>,
 	pub init_load: Arc<AtomicBool>,
 }
@@ -46,7 +45,7 @@ impl Sdf2Table {
 	pub fn new(width: usize, height: usize) -> Self {
 		let init_load = Arc::new(AtomicBool::new(false));
 		let init_load_copy = init_load.clone();
-		MULTI_MEDIA_RUNTIME.spawn(async move {
+		let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
 			log::error!("init_local_store start");
 			init_local_store().await;
 			log::error!("init_local_store end");
@@ -69,7 +68,7 @@ impl Sdf2Table {
 			// 	width,
 			// 	height
 			// },
-			svg: pi_sdf::shape::SvgScenes::new( Aabb::new(Point::new(0.0, 0.0), Point::new(400.0, 400.0))),
+			svg: XHashMap::default(),
 			shapes: XHashMap::default(),
 			init_load
 		}
@@ -367,16 +366,16 @@ impl Sdf2Table {
 				
 				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
 					// log::error!("load_store: {}", key);
-					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
+					let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				}else{
-					// log::error!("computer sdf: {}", key);
-					let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
+					// // log::error!("computer sdf: {}", key);
+					// let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
-					let data_tex = blod_arc.encode_data_tex1(&map);
-					// println!("data_map: {}", map.len());
-					let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-					let sdf = SdfInfo{tex_info: info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size:blod_arc.grid_size() };
+					// let data_tex = blod_arc.encode_data_tex1(&map);
+					// // println!("data_map: {}", map.len());
+					// let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+					let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 					let buffer = bincode::serialize(&sdf).unwrap();
 					stroe::write(key, buffer).await;
 					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
@@ -424,7 +423,8 @@ impl Sdf2Table {
 				height: text_info.grid_h as usize,
 				buffer: index_tex,
 			};
-			text_info.index_offset = (index_position.x, index_position.y);
+			text_info.index_offset_x = index_position.x;
+			text_info.index_offset_y =  index_position.y;
 			let index_block = Block {
 				x: index_position.x as f32,
 				y: index_position.y as f32,
@@ -463,7 +463,8 @@ impl Sdf2Table {
 				Some(r) => r,
 				None => panic!("bbb================"),
 			};
-			text_info.data_offset = (data_position.y, data_position.x);
+			text_info.data_offset_x = data_position.y;
+			text_info.data_offset_y = data_position.x;
 			let data_block = Block {
 				x: data_position.y as f32,
 				y: data_position.x as f32,
@@ -482,48 +483,39 @@ impl Sdf2Table {
 	}
 
 	pub fn set_view_box(&mut self, mins_x: f32,mins_y: f32,maxs_x: f32,maxs_y: f32, ){
-		self.svg.view_box = Aabb::new(Point::new(mins_x, mins_y), Point::new(maxs_x, maxs_y))
+		// self.svg.view_box = Aabb::new(Point::new(mins_x, mins_y), Point::new(maxs_x, maxs_y))
 	}
 
 
-	// 添加字体
-	pub fn add_shape(&mut self, hash: u64, shape: Box<dyn ArcOutline>) {
-		self.svg.add_shape(hash, shape)
+	pub fn add_shape(&mut self, hash: u64, info: SvgInfo) {
+		self.svg.insert(hash, info);
 	}
 
 	pub fn has_shape(&mut self, hash: u64) ->bool {
-		self.svg.shapes.get(&hash).is_some()
+		self.svg.get(&hash).is_some()
 	}
 
 	/// 更新字形信息（计算圆弧信息）
 	pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>,Vec<u8>)>)>>> {
-		let await_count = self.svg.shapes.len();
+		let await_count = self.svg.len();
 
 		let texture_data = Vec::with_capacity(await_count);
 		let result: Arc<ShareMutex< (usize, Vec<(u64, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>> = Share::new(ShareMutex::new((0, texture_data)));
 		let async_value = AsyncValue::new();
 
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-		for (hash, shape) in self.svg.shapes.drain() {
+		for (hash, info) in self.svg.drain() {
 			let async_value1 = async_value.clone();
 			let result1 = result.clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
-				// let hash = shape.get_hash();
-				let extents = shape.extents();
-				println!("extents: {:?}", extents);
-				let (mut blod_arc, map) = compute_near_arc_impl(extents, shape.get_arc_endpoints(), shape.is_area());
+	
+				let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = computer_svg_sdf(info);
 
-				let data_tex = blod_arc.encode_data_tex1(&map);
-				println!("data_map: {}", map.len());
-				let (mut info, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3,) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-				let binding_box = shape.binding_box();
-				info.binding_box = (binding_box.mins.x, binding_box.mins.y, binding_box.maxs.x, binding_box.maxs.y);
-				info.extents = (extents.mins.x, extents.mins.y, extents.maxs.x, extents.maxs.y);
 				// log::debug!("load========={:?}, {:?}", lock.0, len);
 				let mut lock = result1.lock().unwrap();
 				lock.0 += 1;
-				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, blod_arc.grid_size(), await_count, info);
-				lock.1.push((hash, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
+				// log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
+				lock.1.push((hash, tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4));
 				if lock.0 == await_count {
 					log::trace!("encode_data_tex1");
 					async_value1.set(result1.clone());
@@ -557,7 +549,8 @@ impl Sdf2Table {
 				height: text_info.grid_h as usize,
 				buffer: index_tex,
 			};
-			text_info.index_offset = (index_position.x, index_position.y);
+			text_info.index_offset_x = index_position.x;
+			text_info.index_offset_y =  index_position.y;
 			let index_block = Block {
 				x: index_position.x as f32,
 				y: index_position.y as f32,
@@ -596,7 +589,8 @@ impl Sdf2Table {
 				Some(r) => r,
 				None => panic!("bbb================"),
 			};
-			text_info.data_offset = (data_position.y, data_position.x);
+			text_info.data_offset_x = data_position.y;
+			text_info.data_offset_y = data_position.x;
 			let data_block = Block {
 				x: data_position.y as f32,
 				y: data_position.x as f32,

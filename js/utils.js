@@ -126,3 +126,40 @@ export function deleteKey (key) {
 	// return Promise.resolve()
 };
 
+export function createFace(fnot_data)  {}
+
+export function computerSdf(max_box, outline) {}
+
+export function horizontalAdvance(face, text) {}
+
+export function ascender(face) {}
+
+export function descender(face) {}
+
+export function maxBox(face) {}
+
+export function maxBoxNormaliz(face) {}
+
+export function toOutline(face, text) {}
+
+export function debugSize(face) {}
+
+export function createCircle(cx, cy, radius)  {}
+
+export function createRect(x, y, width, height) {}
+
+export function createSegment(ax, ay, bx, by) {}
+
+export function createEllipse(cx, cy, rx, ry) {}
+
+export function createPolygon(points){}
+
+export function createPolyline(points)  {}
+
+export function createPath(verb, points)  {}
+
+export function getSvgInfo(shape){}
+
+export function computerSvgSdf(svg_info){}
+
+export function free(obj){}

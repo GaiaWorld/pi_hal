@@ -209,3 +209,6 @@ impl WritePixel for FontImage {
     }
 }
 
+pub use pi_sdf::font::{FontFace, SdfInfo};
+pub use pi_sdf::glyphy::blob::TexInfo;
+
