@@ -10,7 +10,7 @@ use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use pi_share::ThreadSync;
 use crate::createFace;
 
-use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight, toOutline, debugSize};
+use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight, toOutline, debugSize, loadFontSdf, free, glyphIndex};
 
 pub struct Brush {
 	fonts: SecondaryMap<DefaultKey, Font>,
@@ -194,9 +194,24 @@ impl FontFace{
 		toOutline(self.0.clone(), c.to_string())
     }
 
+	pub fn glyph_index(&self, c: char) -> u16 {
+		glyphIndex(self.0.clone(), c.to_string())
+    }
+
 	pub fn debug_size(&self) -> usize {
 		debugSize(self.0.clone())
     }
 }
 
+impl Drop for FontFace {
+    fn drop(&mut self) {
+        free(self.0.clone());
+    }
+}
 
+pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)>{
+	let data = loadFontSdf().await;
+	let data = js_sys::Uint8Array::from(data).to_vec();
+	log::error!("sdf data size: {}", data.len());
+	bincode::deserialize(&data[..]).unwrap()
+}

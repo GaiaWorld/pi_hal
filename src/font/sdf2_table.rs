@@ -1,6 +1,6 @@
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
 
-use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
+use std::{cell::OnceCell, collections::hash_map::Entry, hash::{DefaultHasher, Hash, Hasher}, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
 
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
@@ -13,7 +13,7 @@ use pi_slotmap::{SecondaryMap, DefaultKey, SlotMap};
 
 use super::{font::{FontId, Block, FontImage, FontInfo, FontFaceId, GlyphId, Size, FontFamilyId}, text_pack::TextPacker};
 
-use crate::{font::font::ShadowImage, font_brush::{FontFace, SdfInfo}, svg::{SvgInfo, computer_svg_sdf}, runtime::MULTI_MEDIA_RUNTIME, stroe::{self, init_local_store}};
+use crate::{font::font::ShadowImage, font_brush::{FontFace, SdfInfo, load_font_sdf}, svg::{SvgInfo, computer_svg_sdf}, runtime::MULTI_MEDIA_RUNTIME, stroe::{self, init_local_store}};
 use pi_async_rt::prelude::AsyncRuntime;
 pub use crate::font_brush::TexInfo;
 
@@ -46,10 +46,12 @@ impl Sdf2Table {
 		let init_load = Arc::new(AtomicBool::new(false));
 		let init_load_copy = init_load.clone();
 		let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
-			log::error!("init_local_store start");
+			// log::error!("init_local_store start");
 			init_local_store().await;
-			log::error!("init_local_store end");
+			// log::error!("init_local_store end");
 			init_load_copy.store(true, Ordering::Relaxed);
+			// let decoded = load_font_sdf().await;
+			// log::error!("decoded: {:?}", (&decoded[0].0, &decoded[0].1[0].tex_info));
 		});
 
 		Self {
@@ -342,6 +344,12 @@ impl Sdf2Table {
 					}
 					let font_face_id = font_info.font_ids[g.font_face_index];
 					if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
+						// 字体中不存在字符
+						let glyph_index = font_face.glyph_index(g.char);
+						// log::error!("{} glyph_index: {}", g.char, glyph_index);
+						if glyph_index == 0{
+							continue;
+						}
 						outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
 						keys.push(format!("{}{}", g.char, font_info.font.font_family[g.font_face_index].as_str()));
 						chars.push(g.char)
@@ -363,7 +371,9 @@ impl Sdf2Table {
 			// println!("encode_data_tex===={:?}", index);
 			let key = keys[ll].clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
-				
+				let mut hasher = DefaultHasher::new();
+				key.hash(&mut hasher);
+				let key = hasher.finish().to_string();
 				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
 					// log::error!("load_store: {}", key);
 					let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
@@ -377,7 +387,9 @@ impl Sdf2Table {
 					// let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
 					let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 					let buffer = bincode::serialize(&sdf).unwrap();
+					// println!("stroe::write: {:?}", (&key, buffer.len()));
 					stroe::write(key, buffer).await;
+					// println!("stroe::write end!! ");
 					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				};

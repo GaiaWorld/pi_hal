@@ -62,6 +62,7 @@ extern "C" {
     pub fn maxBox(face: JsValue)-> JsValue;
     pub fn maxBoxNormaliz(face: JsValue)-> JsValue;
     pub fn toOutline(face: JsValue, text: String) ->JsValue;
+    pub fn glyphIndex(face: JsValue, text: String) -> u16;
     pub fn debugSize(face: JsValue) -> usize;
 
     pub fn createCircle(cx: f32, cy: f32, radius: f32) -> JsValue;
@@ -74,6 +75,7 @@ extern "C" {
     pub fn getSvgInfo(shape: JsValue) -> JsValue;
     pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
+    pub async fn loadFontSdf() -> JsValue;
 }
 
 #[cfg(feature="web_local_load")]

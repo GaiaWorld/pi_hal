@@ -20,6 +20,7 @@ pub async fn init_local_store() {
  */
 // tslint:disable-next-line:no-reserved-keywords
 pub async fn get(key: String) -> Option<Vec<u8>> {
+    return None;
     let mut hash = key.to_string();
     hash.push_str(STORE_GET_KEY);
 
@@ -43,6 +44,7 @@ pub async fn get(key: String) -> Option<Vec<u8>> {
  * 往indexDb写数据
  */
 pub async fn write(key: String, data: Vec<u8>) {
+    return ;
     let mut hash = key.to_string();
     hash.push_str(STORE_WRITE_KEY);
 

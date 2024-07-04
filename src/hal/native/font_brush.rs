@@ -1,4 +1,6 @@
 
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_share::ThreadSync;
@@ -6,7 +8,7 @@ use pi_slotmap::{SecondaryMap, DefaultKey};
 use font_kit::{font::Face, util::{ WritePixel, Rgba}};
 use smallvec::SmallVec;
 
-use crate::font::font::{FontImage, Block, Await, DrawBlock, FontInfo};
+use crate::{create_async_value, font::font::{Await, Block, DrawBlock, FontImage, FontInfo}};
 
 pub struct Brush {
 	faces: SecondaryMap<DefaultKey, (SmallVec<[Option<usize>; 1]>, usize, f32) >,
@@ -207,6 +209,14 @@ impl WritePixel for FontImage {
 	// TODO
     fn put_shadow_pixel(&mut self, _x: i32, _y: i32, _src: Rgba) {
     }
+}
+
+pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)>{
+	let mut hasher = DefaultHasher::new();
+    "load_font_sdf".hash(&mut hasher);
+    let v = create_async_value("file", "load_font_sdf", hasher.finish(), vec![]);
+	let buffer = v.await.unwrap();
+	bincode::deserialize(&buffer[..]).unwrap()
 }
 
 pub use pi_sdf::font::{FontFace, SdfInfo};

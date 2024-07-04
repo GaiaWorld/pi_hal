@@ -142,6 +142,8 @@ export function maxBoxNormaliz(face) {}
 
 export function toOutline(face, text) {}
 
+export function glyphIndex(face, text) {}
+
 export function debugSize(face) {}
 
 export function createCircle(cx, cy, radius)  {}
@@ -163,3 +165,8 @@ export function getSvgInfo(shape){}
 export function computerSvgSdf(svg_info){}
 
 export function free(obj){}
+
+export function loadFontSdf() {
+	return Promise.resolve(new Uint8Array(0))
+}
+
