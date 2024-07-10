@@ -146,6 +146,7 @@ pub struct SdfInfo {
     pub grid_size: Vec<f32>,
 }
 
+#[derive(Clone)]
 pub struct FontFace(JsValue);
 
 impl FontFace{
@@ -153,13 +154,11 @@ impl FontFace{
 		FontFace(createFace(font_data))
 	}
 
-	pub fn compute_sdf(max_box: Aabb, sink: JsValue) -> SdfInfo {
-		let max_box = [max_box.mins.x, max_box.mins.y, max_box.maxs.x, max_box.maxs.y];
-		let v = computerSdf(&max_box, sink);
+	pub async fn compute_sdf(max_box: Aabb, sink: JsValue) -> Vec<u8> {
+		let max_box = vec![max_box.mins.x, max_box.mins.y, max_box.maxs.x, max_box.maxs.y];
+		let v = computerSdf(max_box, sink).await;
 		let buf = js_sys::Uint8Array::from(v).to_vec();
-
-		let sdf_info: SdfInfo = bincode::deserialize(&buf[..]).unwrap();
-		sdf_info
+		buf
     }
 
     /// 水平宽度
@@ -181,8 +180,6 @@ impl FontFace{
 		let arr = js_sys::Float32Array::from(v);
         Aabb::new(Point::new(arr.get_index(0), arr.get_index(1)), Point::new(arr.get_index(2), arr.get_index(3)))
     }
-
-
 
     pub fn max_box_normaliz(&self) -> Aabb {
 		let v= maxBoxNormaliz(self.0.clone());

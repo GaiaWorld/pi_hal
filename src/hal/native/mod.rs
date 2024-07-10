@@ -40,20 +40,29 @@ pub fn on_load(hash: u64, data: Result<Vec<u8>, String>) {
 }
 
 pub fn create_async_value(modules: &str, func: &str, hash: u64, args: Vec<Arg>) -> AsyncValue<Result<Vec<u8>, String>> {
-    let mut lock = LOAD_MAP.lock();
-    if let Some(vec) = lock.get_mut(&hash) {
-        let v = AsyncValue::new();
-        vec.push(v.clone());
-        v
-    } else {
-        let v = AsyncValue::new();
-        lock.insert(hash, vec![v.clone()]);
+    let mut is_first = false;
+    let r = {
+        let mut lock = LOAD_MAP.lock();
+        let v = if let Some(vec) = lock.get_mut(&hash) {
+            let v = AsyncValue::new();
+            vec.push(v.clone());
+            v
+        } else {
+            let v = AsyncValue::new();
+            lock.insert(hash, vec![v.clone()]);
+            is_first = true;
+            v
+        };
 
+        v
+    };
+
+    if is_first{
         if let Some(cb) = LOAD_CB.read().unwrap().as_ref() {
             cb(modules.to_string(), func.to_string(), hash.to_string(), args);
         }
-
-        v
     }
+    r
+    
 }
 

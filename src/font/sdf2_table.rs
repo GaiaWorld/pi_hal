@@ -1,6 +1,6 @@
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
 
-use std::{cell::OnceCell, collections::hash_map::Entry, hash::{DefaultHasher, Hash, Hasher}, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
+use std::{cell::OnceCell, collections::{hash_map::Entry, HashMap}, hash::{DefaultHasher, Hash, Hasher}, mem::transmute, sync::{atomic::{AtomicBool, Ordering}, mpsc::channel, Arc, Mutex, OnceLock}};
 
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
@@ -88,8 +88,11 @@ impl Sdf2Table {
 
 	// 添加字体
 	pub fn add_font(&mut self, font_id: FontFaceId, buffer: Vec<u8>) {
+		// #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
 		let face = FontFace::new(buffer);
-		let max_box = face.max_box().clone();
+		// #[cfg(all(target_arch="wasm32", not(feature="empty")))]
+
+		let max_box = face.max_box();
 		self.fonts.insert(font_id.0, face);
 		self.max_boxs.insert(font_id.0, max_box);
 	}
@@ -309,7 +312,6 @@ impl Sdf2Table {
 
 	/// 更新字形信息（计算圆弧信息）
 	pub fn draw_await(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>, result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>,)>)>>, index: usize) -> AsyncValue<()> {
-		
 		let mut await_count = 0;
 		for (_, font_info) in fonts.iter() {
 			await_count += font_info.await_info.wait_list.len();
@@ -324,6 +326,7 @@ impl Sdf2Table {
 
 		// 轮廓信息（贝塞尔曲线）
 		let mut outline_infos = Vec::with_capacity(await_count);
+		// let mut outline_infos2: HashMap<DefaultKey, Vec<(char, GlyphId, &str)>> = HashMap::with_capacity(await_count);
 		let mut chars = Vec::new();
 		let mut keys = Vec::new();
 		// let mut sdf_all_draw_slotmap = Vec::new();
@@ -344,13 +347,14 @@ impl Sdf2Table {
 					}
 					let font_face_id = font_info.font_ids[g.font_face_index];
 					if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-						// 字体中不存在字符
 						let glyph_index = font_face.glyph_index(g.char);
 						// log::error!("{} glyph_index: {}", g.char, glyph_index);
+						// 字体中不存在字符
 						if glyph_index == 0{
 							continue;
 						}
-						outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
+						// #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
+						outline_infos.push((font_face.to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线						
 						keys.push(format!("{}{}", g.char, font_info.font.font_family[g.font_face_index].as_str()));
 						chars.push(g.char)
 					}
@@ -363,7 +367,8 @@ impl Sdf2Table {
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
 		let mut ll = 0;
 	
-		// println!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
+
+		// log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
 		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
 		for glyph_visitor in outline_infos.drain(..) {
 			let async_value1 = async_value.clone();
@@ -375,20 +380,35 @@ impl Sdf2Table {
 				key.hash(&mut hasher);
 				let key = hasher.finish().to_string();
 				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
-					// log::error!("load_store: {}", key);
+					log::error!("store is have: {}", key);
 					let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				}else{
-					// // log::error!("computer sdf: {}", key);
+					log::error!("store is not have: {}", key);
 					// let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
 					// let data_tex = blod_arc.encode_data_tex1(&map);
 					// // println!("data_map: {}", map.len());
 					// let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-					let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
-					let buffer = bincode::serialize(&sdf).unwrap();
-					// println!("stroe::write: {:?}", (&key, buffer.len()));
-					stroe::write(key, buffer).await;
+					#[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
+					let sdf = {
+						let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
+						let buffer = bincode::serialize(&sdf).unwrap();
+						stroe::write(key, buffer).await;
+						sdf
+					};
+					
+
+					#[cfg(all(target_arch="wasm32", not(feature="empty")))]
+					let sdf = {
+						let buffer = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0).await;
+						log::error!("sdf buffer: {}", buffer.len());
+						let sdf: SdfInfo = bincode::deserialize(&buffer).unwrap();
+						
+						stroe::write(key, buffer).await;
+						sdf
+					};
+					
 					// println!("stroe::write end!! ");
 					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)

@@ -128,7 +128,7 @@ export function deleteKey (key) {
 
 export function createFace(fnot_data)  {}
 
-export function computerSdf(max_box, outline) {}
+export async function computerSdf(char, outline) {}
 
 export function horizontalAdvance(face, text) {}
 
