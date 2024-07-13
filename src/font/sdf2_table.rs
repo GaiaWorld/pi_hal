@@ -350,7 +350,8 @@ impl Sdf2Table {
 						let glyph_index = font_face.glyph_index(g.char);
 						// log::error!("{} glyph_index: {}", g.char, glyph_index);
 						// 字体中不存在字符
-						if glyph_index == 0{
+						if glyph_index == 0 {
+							await_count -= 1;
 							continue;
 						}
 						// #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
@@ -376,15 +377,16 @@ impl Sdf2Table {
 			// println!("encode_data_tex===={:?}", index);
 			let key = keys[ll].clone();
 			MULTI_MEDIA_RUNTIME.spawn(async move {
+				let temp_key = key.clone();
 				let mut hasher = DefaultHasher::new();
 				key.hash(&mut hasher);
 				let key = hasher.finish().to_string();
 				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
-					log::error!("store is have: {}", key);
 					let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
+					log::error!("store is have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				}else{
-					log::error!("store is not have: {}", key);
+					
 					// let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
 					// let data_tex = blod_arc.encode_data_tex1(&map);
@@ -402,7 +404,7 @@ impl Sdf2Table {
 					#[cfg(all(target_arch="wasm32", not(feature="empty")))]
 					let sdf = {
 						let buffer = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0).await;
-						log::error!("sdf buffer: {}", buffer.len());
+						
 						let sdf: SdfInfo = bincode::deserialize(&buffer).unwrap();
 						
 						stroe::write(key, buffer).await;
@@ -411,6 +413,7 @@ impl Sdf2Table {
 					
 					// println!("stroe::write end!! ");
 					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
+					log::error!("store is not have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
 					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 				};
 				
