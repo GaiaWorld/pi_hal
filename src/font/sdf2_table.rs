@@ -17,7 +17,8 @@ use crate::{font::font::ShadowImage, font_brush::{FontFace, SdfInfo, load_font_s
 use pi_async_rt::prelude::AsyncRuntime;
 pub use crate::font_brush::TexInfo;
 
-// static IS_FIRST: AtomicBool = AtomicBool::new(true);
+static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
+static INTI_STROE: AtomicBool = AtomicBool::new(false);
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -38,20 +39,20 @@ pub struct Sdf2Table {
 	// pub(crate) size: Size<usize>,
 	pub svg: XHashMap<u64, SvgInfo>,
 	pub shapes: XHashMap<u64, TexInfo>,
-	pub init_load: Arc<AtomicBool>,
 }
 
 impl Sdf2Table {
 	pub fn new(width: usize, height: usize) -> Self {
-		let init_load = Arc::new(AtomicBool::new(false));
-		let init_load_copy = init_load.clone();
 		let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
-			// log::error!("init_local_store start");
-			init_local_store().await;
-			// log::error!("init_local_store end");
-			init_load_copy.store(true, Ordering::Relaxed);
-			// let decoded = load_font_sdf().await;
-			// log::error!("decoded: {:?}", (&decoded[0].0, &decoded[0].1[0].tex_info));
+			if !INTI_STROE.load(Ordering::Relaxed){
+				init_local_store().await;
+				log::error!("init_local_store end");
+				INTI_STROE.store(true, Ordering::Relaxed);
+				for v in INTI_STROE_VALUE.lock().unwrap().drain(..) {
+					v.set(());
+				}
+			}
+			
 		});
 
 		Self {
@@ -72,7 +73,6 @@ impl Sdf2Table {
 			// },
 			svg: XHashMap::default(),
 			shapes: XHashMap::default(),
-			init_load
 		}
 
 		
@@ -368,71 +368,79 @@ impl Sdf2Table {
 		let max_boxs: &'static SecondaryMap<DefaultKey,  Aabb> = unsafe { transmute(&self.max_boxs) };
 		let mut ll = 0;
 	
+		let temp_value = async_value.clone();		
+		MULTI_MEDIA_RUNTIME.spawn(async move {
+			if !INTI_STROE.load(Ordering::Relaxed){
+				log::error!("=============存储未初始化");
+				let async_value3 = AsyncValue::new(); 
+				INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+				async_value3.await;
+			}
+			// log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
+			// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+			for glyph_visitor in outline_infos.drain(..) {
+				let async_value1 = async_value.clone();
+				let result1 = result.clone();
+				// println!("encode_data_tex===={:?}", index);
+				let key = keys[ll].clone();
+				MULTI_MEDIA_RUNTIME.spawn(async move {
+					let temp_key = key.clone();
+					let mut hasher = DefaultHasher::new();
+					key.hash(&mut hasher);
+					let key = hasher.finish().to_string();
+					let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
+						let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
+						log::error!("store is have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
+						(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
+					}else{
+						
+						// let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
 
-		// log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
-		// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-		for glyph_visitor in outline_infos.drain(..) {
-			let async_value1 = async_value.clone();
-			let result1 = result.clone();
-			// println!("encode_data_tex===={:?}", index);
-			let key = keys[ll].clone();
-			MULTI_MEDIA_RUNTIME.spawn(async move {
-				let temp_key = key.clone();
-				let mut hasher = DefaultHasher::new();
-				key.hash(&mut hasher);
-				let key = hasher.finish().to_string();
-				let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
-					let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
-					log::error!("store is have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
-					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
-				}else{
-					
-					// let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
+						// let data_tex = blod_arc.encode_data_tex1(&map);
+						// // println!("data_map: {}", map.len());
+						// let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
+						#[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
+						let sdf = {
+							let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
+							let buffer = bincode::serialize(&sdf).unwrap();
+							stroe::write(key, buffer).await;
+							sdf
+						};
+						
 
-					// let data_tex = blod_arc.encode_data_tex1(&map);
-					// // println!("data_map: {}", map.len());
-					// let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-					#[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
-					let sdf = {
-						let sdf = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
-						let buffer = bincode::serialize(&sdf).unwrap();
-						stroe::write(key, buffer).await;
-						sdf
+						#[cfg(all(target_arch="wasm32", not(feature="empty")))]
+						let sdf = {
+							let buffer = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0).await;
+							
+							let sdf: SdfInfo = bincode::deserialize(&buffer).unwrap();
+							
+							stroe::write(key, buffer).await;
+							sdf
+						};
+						
+						// println!("stroe::write end!! ");
+						let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
+						log::error!("store is not have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
+						(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 					};
 					
-
-					#[cfg(all(target_arch="wasm32", not(feature="empty")))]
-					let sdf = {
-						let buffer = FontFace::compute_sdf(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0).await;
-						
-						let sdf: SdfInfo = bincode::deserialize(&buffer).unwrap();
-						
-						stroe::write(key, buffer).await;
-						sdf
-					};
-					
-					// println!("stroe::write end!! ");
-					let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
-					log::error!("store is not have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
-					(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
-				};
-				
-				// log::debug!("load========={:?}, {:?}", lock.0, len);
-				let mut lock = result1.lock().unwrap();
-				lock.0 += 1;
-				// println!("encode_data_tex0===={:?}", (index, ll));
-				log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, grid_size, await_count, info);
-				lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
-				if lock.0 == await_count {
-					log::trace!("encode_data_tex1");
-					async_value1.set(());
-					// println!("encode_data_tex1===={}", index);
-					log::trace!("encode_data_tex2");
-				}
-			}).unwrap();
+					// log::debug!("load========={:?}, {:?}", lock.0, len);
+					let mut lock = result1.lock().unwrap();
+					lock.0 += 1;
+					// println!("encode_data_tex0===={:?}", (index, ll));
+					log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, grid_size, await_count, info);
+					lock.1.push((glyph_visitor.2.0, info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3));
+					if lock.0 == await_count {
+						log::trace!("encode_data_tex1");
+						async_value1.set(());
+						// println!("encode_data_tex1===={}", index);
+						log::trace!("encode_data_tex2");
+					}
+				}).unwrap();
 			ll += 1;
-		}
-		async_value
+			}
+		}).unwrap();
+	temp_value
 	}
 
 	pub fn update<F: FnMut(Block, FontImage) + Clone + 'static,  F1: FnMut(Block, ShadowImage) + Clone + 'static>(&mut self, mut update: F, mut updtae_shadow: F1, result: Arc<ShareMutex< (usize, Vec<(DefaultKey, TexInfo, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>)>)>>) {
