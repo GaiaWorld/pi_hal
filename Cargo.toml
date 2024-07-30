@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.36"
+version = "0.1.37"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"

@@ -390,7 +390,7 @@ impl Sdf2Table {
 					let key = hasher.finish().to_string();
 					let (info, data_tex, index_tex, sdf_tex0, sdf_tex1, sdf_tex2, sdf_tex3, grid_size) = if let Some(buffer) = stroe::get(key.clone()).await{
 						let SdfInfo{ tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size } = bincode::deserialize(&buffer[..]).unwrap();
-						log::error!("store is have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
+						log::trace!("store is have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
 						(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 					}else{
 						
@@ -420,7 +420,7 @@ impl Sdf2Table {
 						
 						// println!("stroe::write end!! ");
 						let SdfInfo{tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size} = sdf;
-						log::error!("store is not have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
+						log::trace!("store is not have: {}, data_tex: {}, tex_info: {:?}", temp_key, data_tex.len(), tex_info);
 						(tex_info, data_tex, index_tex, sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4, grid_size)
 					};
 					
