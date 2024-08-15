@@ -22,22 +22,22 @@ pub async fn init_local_store() {
 pub async fn get(key: String) -> Option<Vec<u8>> {
     return None;
     let mut hash = key.to_string();
-    hash.push_str(STORE_GET_KEY);
+    // hash.push_str(STORE_GET_KEY);
 
-    let mut hasher = DefaultHasher::new();
-    hash.hash(&mut hasher);
+    // let mut hasher = DefaultHasher::new();
+    // hash.hash(&mut hasher);
 
-    let v = create_async_value("store", "get", hasher.finish(), vec![Arg::String(key)]);
-    match v.await {
-        Ok(v) => {
-            if v.is_empty() {
-                return None;
-            } else {
-                return Some(v);
-            }
-        }
-        Err(_) => return None,
-    }
+    // let v = create_async_value("store", "get", hasher.finish(), vec![Arg::String(key)]);
+    // match v.await {
+    //     Ok(v) => {
+    //         if v.is_empty() {
+    //             return None;
+    //         } else {
+    //             return Some(v);
+    //         }
+    //     }
+    //     Err(_) => return None,
+    // }
 }
 
 /**

@@ -87,7 +87,7 @@ impl Sdf2Table {
 	}
 
 	// 添加字体
-	pub fn add_font(&mut self, font_id: FontFaceId, buffer: Vec<u8>) {
+	pub fn add_font(&mut self, font_id: FontFaceId, buffer: Arc<Vec<u8>>) {
 		// #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
 		let face = FontFace::new(buffer);
 		// #[cfg(all(target_arch="wasm32", not(feature="empty")))]

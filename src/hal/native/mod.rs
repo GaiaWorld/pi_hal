@@ -24,7 +24,7 @@ pub enum Arg {
 
 lazy_static! {
     pub static ref LOAD_CB: RwLock<Option<Arc<dyn Fn(String, String, String, Vec<Arg>) + Send + Sync>>> = RwLock::new(None);
-    pub static ref LOAD_MAP: Mutex<HashMap<u64, Vec<AsyncValue<Result<Vec<u8>, String>>>>> =
+    pub static ref LOAD_MAP: Mutex<HashMap<u64, Vec<AsyncValue<Result<Arc<Vec<u8>>, String>>>>> =
         Mutex::new(HashMap::new());
 }
 
@@ -32,14 +32,14 @@ pub fn init_load_cb(cb: Arc<dyn Fn(String, String, String, Vec<Arg>) + Send + Sy
     *LOAD_CB.write().unwrap() = Some(cb);
 }
 
-pub fn on_load(hash: u64, data: Result<Vec<u8>, String>) {
+pub fn on_load(hash: u64, data: Result<Arc<Vec<u8>>, String>) {
     let mut v = LOAD_MAP.lock().remove(&hash).unwrap();
     v.drain(..).for_each(|v| {
         v.set(data.clone());
     });
 }
 
-pub fn create_async_value(modules: &str, func: &str, hash: u64, args: Vec<Arg>) -> AsyncValue<Result<Vec<u8>, String>> {
+pub fn create_async_value(modules: &str, func: &str, hash: u64, args: Vec<Arg>) -> AsyncValue<Result<Arc<Vec<u8>>, String>> {
     let mut is_first = false;
     let r = {
         let mut lock = LOAD_MAP.lock();
