@@ -54,7 +54,7 @@ extern "C" {
      */
     pub async fn deleteKey(key: String);
 
-    pub fn createFace(data: Vec<u8>) -> JsValue;
+    pub fn createFace(data: &[u8]) -> JsValue;
     pub async fn computerSdf(max_box: Vec<f32>, outline: JsValue) -> JsValue;
     pub fn horizontalAdvance(face: JsValue, text: String) -> f32;
     pub fn ascender(face: JsValue) -> f32;

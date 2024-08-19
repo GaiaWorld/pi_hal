@@ -9,6 +9,7 @@ use crate::{ascender, computerSdf, descender, font::font::{Await, Block, DrawBlo
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use pi_share::ThreadSync;
 use crate::createFace;
+use pi_share::Share;
 
 use super::{fillBackGround, setFont, drawCharWithStroke, drawChar, getGlobalMetricsHeight, toOutline, debugSize, loadFontSdf, free, glyphIndex};
 
@@ -150,8 +151,8 @@ pub struct SdfInfo {
 pub struct FontFace(JsValue);
 
 impl FontFace{
-	pub fn new(font_data: Vec<u8>) -> Self{
-		FontFace(createFace(font_data))
+	pub fn new(font_data: Share<Vec<u8>>) -> Self{
+		FontFace(createFace(font_data.as_ref()))
 	}
 
 	pub async fn compute_sdf(max_box: Aabb, sink: JsValue) -> Vec<u8> {

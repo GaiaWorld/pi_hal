@@ -8,10 +8,11 @@ use pi_async_rt::rt::AsyncValueNonBlocking as AsyncValue;
 
 pub use image::{DynamicImage, ImageError};
 use pi_atom::Atom;
+use pi_share::Share;
 
 lazy_static! {
     pub static ref LOAD_CB: RwLock<Option<Arc<dyn Fn(String) + Send + Sync>>> = RwLock::new(None);
-    pub static ref LOAD_MAP: Mutex<HashMap<String, AsyncValue<Vec<u8>>>> =
+    pub static ref LOAD_MAP: Mutex<HashMap<String, AsyncValue<Share<Vec<u8>>>>> =
         Mutex::new(HashMap::new());
 }
 
