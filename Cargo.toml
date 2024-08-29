@@ -13,6 +13,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pi_time = "0.3"
+pi_wgpu = { version = "0.1", registry = "yn"}
+ktx = "0.3"
 # pi_share = {version="0.4", features=["serial"]}
 smallvec = { version = "1.8", features = ["serde"] }
 image = "0.24"
@@ -65,7 +67,11 @@ empty=[]
 single_thread = [] # 本地平台，设置该feature有效，运行时为单线程运行时
 web_local_load = []
 
+[patch.crates-io]
+glow = {path="../glow"}
+
 [patch.yn]
 pi_sdf = {path="../pi_sdf"}
+pi_wgpu = {path="../pi_wgpu"}
 
 

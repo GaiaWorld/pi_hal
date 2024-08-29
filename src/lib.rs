@@ -7,6 +7,7 @@ mod hal;
 
 pub mod font;
 pub mod loader;
+pub mod texture;
 
 pub use hal::*;
 // pub use pi_sdf;

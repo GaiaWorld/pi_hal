@@ -10,6 +10,7 @@ pub mod stroe;
 pub mod svg;
 #[cfg(feature="web_local_load")]
 pub mod web_local;
+pub mod image_texture_load;
 
 #[wasm_bindgen(module = "/js/utils.js")]
 extern "C" {
@@ -30,6 +31,12 @@ extern "C" {
 	// 加载图片作文canvas
 	#[wasm_bindgen(catch)]
 	pub async fn loadImageAsCanvas(image_name: u32) -> Result<JsValue, JsValue>;
+    // 加载ktx文件
+    #[wasm_bindgen(catch)]
+	pub async fn loadKtx(image_name: u32) -> Result<JsValue, JsValue>;
+    // 加载图片作文canvas
+	#[wasm_bindgen(catch)]
+	pub async fn loadImage(image_name: u32) -> Result<JsValue, JsValue>;
     // #[wasm_bindgen]
     pub fn useVao() -> bool;
     pub fn hasAtom(key: u32) -> bool;
