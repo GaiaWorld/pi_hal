@@ -3,6 +3,7 @@ pub mod text_pack;
 pub mod text_split;
 pub mod sdf_table;
 pub mod sdf2_table;
+pub mod blur;
 // pub mod svg;
 pub mod bitmap_table;
 pub(crate) mod tables;
