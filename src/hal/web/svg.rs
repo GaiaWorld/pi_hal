@@ -1,12 +1,25 @@
 use crate::{
-    computerSvgSdf, createCircle, createEllipse, createPath, createPolygon, createPolyline,
-    createRect, createSegment, free, getSvgInfo,
+    computeArcsSdfTex, computeShapeSdfTex, computerSvgSdf, createCircle, createEllipse, createPath,
+    createPolygon, createPolyline, createRect, createSegment, createSvgInfo, free, getSvgInfo,
 };
-
-use super::font_brush::SdfInfo;
+use parry2d::bounding_volume::Aabb;
+use super::font_brush::{ArcEndpoint, SdfInfo, SdfInfo2};
 use wasm_bindgen::JsValue;
 
 pub struct SvgInfo(JsValue);
+
+impl SvgInfo {
+    pub fn new(binding_box: Aabb, arc_endpoints: Vec<ArcEndpoint>) -> Self {
+        let arc_endpoints = bincode::serialize(&arc_endpoints).unwrap();
+        let binding_box = vec![
+            binding_box.mins.x,
+            binding_box.mins.y,
+            binding_box.maxs.x,
+            binding_box.maxs.x,
+        ];
+        Self(createSvgInfo(binding_box, arc_endpoints))
+    }
+}
 
 impl Drop for SvgInfo {
     fn drop(&mut self) {
@@ -145,6 +158,14 @@ pub fn computer_svg_sdf(info: SvgInfo) -> SdfInfo {
     let buf = js_sys::Uint8Array::from(v).to_vec();
 
     let sdf_info: SdfInfo = bincode::deserialize(&buf[..]).unwrap();
+    sdf_info
+}
+
+pub fn compute_shape_sdf_tex(info: SvgInfo, size: usize, pxrange: u32) -> SdfInfo2 {
+    let v = computeShapeSdfTex(info.0.clone(), size, pxrange);
+    let buf = js_sys::Uint8Array::from(v).to_vec();
+
+    let sdf_info: SdfInfo2 = bincode::deserialize(&buf[..]).unwrap();
     sdf_info
 }
 

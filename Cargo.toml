@@ -69,7 +69,7 @@ web_local_load = []
 
 [patch.yn]
 pi_sdf = {path="../pi_sdf"}
-pi_wgpu = {path="../pi_wgpu"}
+# pi_wgpu = {path="../pi_wgpu"}
 # pi_glow = {path="../pi_glow"}
 
 

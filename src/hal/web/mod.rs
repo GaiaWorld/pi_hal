@@ -63,12 +63,14 @@ extern "C" {
 
     pub fn createFace(data: &[u8]) -> JsValue;
     pub async fn computerSdf(max_box: Vec<f32>, outline: JsValue) -> JsValue;
+    pub async fn computeSdfTex(outline: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub fn horizontalAdvance(face: JsValue, text: String) -> f32;
     pub fn ascender(face: JsValue) -> f32;
     pub fn descender(face: JsValue) -> f32;
     pub fn maxBox(face: JsValue)-> JsValue;
     pub fn maxBoxNormaliz(face: JsValue)-> JsValue;
     pub fn toOutline(face: JsValue, text: String) ->JsValue;
+    pub fn toOutline3(face: JsValue, text: String) ->JsValue;
     pub fn glyphIndex(face: JsValue, text: String) -> u16;
     pub fn debugSize(face: JsValue) -> usize;
 
@@ -81,6 +83,9 @@ extern "C" {
     pub fn createPath(verb: Vec<u8>, points: Vec<f32>) -> JsValue;
     pub fn getSvgInfo(shape: JsValue) -> JsValue;
     pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
+    pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
+    pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
+    pub fn createSvgInfo(bbox: Vec<f32>, arc_endpoints: Vec<u8>) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
     pub async fn loadFontSdf() -> JsValue;
 }

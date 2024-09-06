@@ -219,6 +219,7 @@ pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)>{
 	bincode::deserialize(&buffer[..]).unwrap()
 }
 
-pub use pi_sdf::font::{FontFace, SdfInfo};
-pub use pi_sdf::glyphy::blob::TexInfo;
+pub use pi_sdf::font::{FontFace, SdfInfo, SdfInfo2};
+pub use pi_sdf::glyphy::{blob::{TexInfo, TexInfo2}, geometry::arc::ArcEndpoint};
+pub use pi_sdf::utils::GlyphInfo;
 

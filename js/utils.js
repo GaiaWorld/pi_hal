@@ -130,6 +130,8 @@ export function createFace(fnot_data)  {}
 
 export async function computerSdf(char, outline) {}
 
+export async function computeSdfTex(outline, size, pxrange){}
+
 export function horizontalAdvance(face, text) {}
 
 export function ascender(face) {}
@@ -142,6 +144,7 @@ export function maxBoxNormaliz(face) {}
 
 export function toOutline(face, text) {}
 
+export function toOutline3(face, text) {}
 export function glyphIndex(face, text) {}
 
 export function debugSize(face) {}
@@ -163,6 +166,10 @@ export function createPath(verb, points)  {}
 export function getSvgInfo(shape){}
 
 export function computerSvgSdf(svg_info){}
+
+export async function computeShapeSdfTex(info, size, pxrange){}
+
+export async function computeArcsSdfTex(info, size, pxrange) {}
 
 export function free(obj){}
 
