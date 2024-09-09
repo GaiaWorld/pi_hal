@@ -15,7 +15,7 @@ use serde::{Serialize, Deserialize};
 use pi_atom::Atom;
 use smallvec::SmallVec;
 
-use super::{tables::FontTable, sdf_table::FontCfg};
+use super::{sdf_table::{FontCfg, MetricsInfo}, tables::FontTable};
 
 #[derive(Debug, Clone)]
 pub struct Size<T> {
@@ -289,6 +289,16 @@ impl FontMgr {
 			None => return 0.0,
 		};
 		self.table.measure_width(f, font_info, char, self.font_type)
+	}
+
+	// 测量信息
+	pub fn metrics(&self, id: GlyphId) -> Option<&MetricsInfo> {
+		let desc = self.table.glyph_id_desc(id, self.font_type);
+		let font_info = match self.sheet.fonts.get(desc.font_id.0) {
+			Some(r) => r,
+			None => return None,
+		};
+		self.table.metrics(id, font_info, self.font_type)
 	}
 
 	// /// 取到字形信息

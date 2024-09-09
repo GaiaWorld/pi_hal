@@ -1,6 +1,6 @@
 
 
-use super::{sdf_table::SdfTable, font::{FontId, FontInfo, FontType, GlyphId, BASE_FONT_SIZE, Size}, bitmap_table::BitmapTable, sdf2_table::Sdf2Table};
+use super::{bitmap_table::BitmapTable, font::{FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}};
 
 pub struct FontTable {
 	// 本地画笔，用于测量、绘制文字，不同平台可能有不同的实现（web平台依赖于canvas的文字功能， app、exe平台通常可以使用freetype）
@@ -65,6 +65,26 @@ impl FontTable {
 			r
 		}
 	}
+
+	pub fn metrics(&self, id: GlyphId, font: &FontInfo, font_type: FontType) -> Option<&MetricsInfo> {
+		if font_type == FontType::Sdf1 {
+			todo!()
+		} else if font_type == FontType::Sdf2 {
+			self.sdf2_table.metrics(id, font)
+		} else {
+			todo!()
+		}
+	}
+
+	pub fn glyph_id_desc(&self, glyph_id: GlyphId, font_type: FontType) -> &GlyphIdDesc {
+		if font_type == FontType::Sdf1 {
+			todo!()
+		} else if font_type == FontType::Sdf2 {
+			self.sdf2_table.glyph_id_desc(glyph_id)
+		} else {
+			todo!()
+		}
+    }
 
 	pub fn glyph_id(&mut self, f: FontId, char: char, font_info: &mut FontInfo, font_type: FontType) -> Option<GlyphId> {
 		match font_type {

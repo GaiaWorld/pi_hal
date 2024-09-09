@@ -465,7 +465,7 @@ pub struct GlyphInfo {
 /// 字体的全局信息，对该字体的所有文字生效
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsInfo {
-	pub font_size: f32,             // 文字尺寸
+	pub font_size: f32,             // 文字尺寸 emSize = 1;
 	pub line_height: f32,           // 默认行高
 	pub max_height: f32,	        // 所有字形，最大高度（用于在纹理中分配行高）
 	pub ascender: f32,              // 升线 （单位： font_size的百分比）

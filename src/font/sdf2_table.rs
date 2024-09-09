@@ -51,7 +51,8 @@ static PXRANGE: u32 = 10;
 // }
 
 pub struct Sdf2Table {
-    pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontId
+    pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontFaceId
+    pub metrics: SecondaryMap<DefaultKey, MetricsInfo>, // DefaultKey为FontFaceId
     pub max_boxs: SecondaryMap<DefaultKey, Aabb>,  // DefaultKey为FontId
     // text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
@@ -64,6 +65,7 @@ pub struct Sdf2Table {
     // pub(crate) size: Size<usize>,
     pub svg: XHashMap<u64, SvgInfo>,
     pub shapes: XHashMap<u64, TexInfo2>,
+    
 }
 
 impl Sdf2Table {
@@ -81,6 +83,7 @@ impl Sdf2Table {
 
         Self {
             fonts: Default::default(),
+            metrics: Default::default(),
             max_boxs: Default::default(),
             // text_infos: Default::default(),
             // blob_arcs: Default::default(),
@@ -117,6 +120,21 @@ impl Sdf2Table {
         // #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
         let face = FontFace::new(buffer);
         // #[cfg(all(target_arch="wasm32", not(feature="empty")))]
+        let ascender = face.ascender();
+        let descender = face.descender();
+        let height = ascender - descender;
+        
+        self.metrics.insert(font_id.0, MetricsInfo {
+            font_size: FONT_SIZE as f32,
+            distance_range: PXRANGE as f32,
+            line_height: height,
+            max_height: height,
+            ascender: ascender,
+            descender: descender,
+            underline_y: 0.0, // todo 暂时不用，先写0
+            underline_thickness: 0.0, // todo
+                            // units_per_em: r.units_per_em(),
+        });
 
         let max_box = face.max_box();
         self.fonts.insert(font_id.0, face);
@@ -138,26 +156,19 @@ impl Sdf2Table {
         ret
     }
 
-    // 文字布局信息
-    pub fn metrics(&mut self, font: &FontInfo) -> Option<MetricsInfo> {
-        for font_id in font.font_ids.iter() {
-            if let Some(r) = self.fonts.get(font_id.0) {
-                let height = r.ascender() - r.descender();
-                return Some(MetricsInfo {
-                    font_size: FONT_SIZE as f32,
-                    distance_range: PXRANGE as f32,
-                    line_height: height,
-                    max_height: height,
-                    ascender: r.ascender(),
-                    descender: r.descender(),
-                    underline_y: 0.0, // todo 暂时不用，先写0
-                    underline_thickness: 0.0, // todo
-                                      // units_per_em: r.units_per_em(),
-                });
+    pub fn metrics(&self, glyph_id: GlyphId, font: &FontInfo) -> Option<&MetricsInfo> {
+        let glyph = &self.glyphs[glyph_id.0];
+        if glyph.font_face_index.is_null() {
+            return None;
+        } else {
+            let face_id = font.font_ids[glyph.font_face_index].0;
+            if let Some(r) = self.metrics.get(face_id) {
+                return Some(r);
+            } else {
+                return None;
             }
-        }
-        None
-    }
+        } 
+	}
 
     // 文字宽度
     pub fn width(&mut self, font_id: FontId, font: &mut FontInfo, char: char) -> (f32, GlyphId) {
@@ -188,6 +199,10 @@ impl Sdf2Table {
         }
 
         return (0.0, glyph_id);
+    }
+
+    pub fn glyph_id_desc(&self, glyph_id: GlyphId) -> &GlyphIdDesc {
+        &self.glyphs[glyph_id.0]
     }
 
     // 字形id
