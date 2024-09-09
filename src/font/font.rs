@@ -7,6 +7,7 @@ use std::{
 
 use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
+use parry2d::bounding_volume::Aabb;
 use pi_hash::XHashMap;
 use pi_slotmap::{DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
@@ -272,6 +273,11 @@ impl FontMgr {
 	pub fn glyph_id(&mut self, f: FontId, char: char) -> Option<GlyphId> {
 		let font_info = &mut self.sheet.fonts[f.0];
 		self.table.glyph_id(f, char, font_info, self.font_type)
+	}
+	
+	pub fn shadow(&mut self, box_: Aabb, radius: f32, size: usize) -> Option<GlyphId> {
+
+		todo!()
 	}
 
 	/// 测量宽度

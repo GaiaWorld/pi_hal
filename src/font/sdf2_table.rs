@@ -536,8 +536,7 @@ impl Sdf2Table {
     }
 
     pub fn update<
-        F: FnMut(Block, FontImage) + Clone + 'static,
-        F1: FnMut(Block, ShadowImage) + Clone + 'static,
+        F: FnMut(Block, FontImage) + Clone + 'static
     >(
         &mut self,
         update: F,
@@ -640,11 +639,9 @@ impl Sdf2Table {
 
     pub fn update_svg<
         F: FnMut(Block, FontImage) + Clone + 'static,
-        F1: FnMut(Block, ShadowImage) + Clone + 'static,
     >(
         &mut self,
         update: F,
-        // updtae_shadow: F1,
         result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
