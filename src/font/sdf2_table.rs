@@ -24,7 +24,7 @@ use pi_share::{Share, ShareMutex};
 use pi_slotmap::{DefaultKey, SecondaryMap, SlotMap};
 
 use super::{
-    font::{Block, FontFaceId, FontFamilyId, FontId, FontImage, FontInfo, GlyphId, Size},
+    font::{Block, FontFaceId, FontFamilyId, FontId, FontImage, FontInfo, Glyph, GlyphId, GlyphIdDesc, Size},
     sdf_table::MetricsInfo,
     text_pack::TextPacker,
 };
@@ -220,7 +220,7 @@ impl Sdf2Table {
                     font_id,
                     char,
                     font_face_index: pi_null::Null::null(),
-                    glyph: TexInfo2::default(),
+                    glyph: Glyph::default(),
                 }));
 
                 // 放入等待队列, 并统计等待队列的总宽度
@@ -239,7 +239,7 @@ impl Sdf2Table {
     }
 
     /// 取到字形信息
-    pub fn glyph(&self, id: GlyphId) -> &TexInfo2 {
+    pub fn glyph(&self, id: GlyphId) -> &Glyph {
         if self.glyphs.get(*id).is_none() {
             panic!("glyph is not exist, {:?}", id);
         }
@@ -588,7 +588,16 @@ impl Sdf2Table {
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(sdf_block, sdf_img);
 
-            glyphs[glyph_id].glyph = tex_info;
+            let advance = glyphs[glyph_id].glyph.advance;
+            glyphs[glyph_id].glyph = Glyph {
+                ox: tex_info.plane_min_x,
+                oy: tex_info.plane_min_y,
+                x: tex_info.sdf_offset_x as f32 + tex_info.atlas_min_x,
+                y: tex_info.sdf_offset_y as f32 + tex_info.atlas_min_y,
+                width: tex_info.atlas_max_x - tex_info.atlas_min_x,
+                height: tex_info.atlas_max_y - tex_info.atlas_min_y,
+                advance
+            };
 
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
@@ -769,10 +778,3 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 // 	pub unicode: u32,        // 字符的unicode编码
 //     pub buffer: Vec<u8>,  // 字符的sdf buffer
 // }
-
-pub struct GlyphIdDesc {
-    pub font_id: FontId,
-    pub char: char,
-    pub glyph: TexInfo2,
-    pub font_face_index: usize,
-}
