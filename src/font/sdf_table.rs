@@ -473,6 +473,7 @@ pub struct MetricsInfo {
 	pub underline_y: f32,           // 下划线的位置 （暂未使用）
 	pub underline_thickness: f32,   // 
 	pub distance_range: f32,        // msdf才会用到（0~1范围内的sdf所跨过的像素数量）
+	pub em_size: f32
 }
 
 #[derive(Debug)]

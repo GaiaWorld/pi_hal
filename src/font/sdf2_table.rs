@@ -152,6 +152,7 @@ impl Sdf2Table {
                     descender: r.descender(),
                     underline_y: 0.0, // todo 暂时不用，先写0
                     underline_thickness: 0.0, // todo
+                    em_size: 1.0,
                                       // units_per_em: r.units_per_em(),
                 });
             }
