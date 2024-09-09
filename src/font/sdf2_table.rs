@@ -178,30 +178,13 @@ impl Sdf2Table {
                                 horizontal_advance * font.font.font_size as f32
                             )
                         );
+                        self.glyphs[glyph_id.0].glyph.advance = horizontal_advance;
                         return (horizontal_advance * font.font.font_size as f32, glyph_id);
                     }
                 };
             }
         } else {
-            if let Some(r) = self
-                .fonts
-                .get_mut(font.font_ids[self.glyphs[glyph_id.0].font_face_index].0)
-            {
-                let horizontal_advance = r.horizontal_advance(char);
-                if horizontal_advance >= 0.0 {
-                    log::debug!(
-                        "mesure char width, char: {}, font_id: {:?}, width: {:?}",
-                        char,
-                        font.font_ids[self.glyphs[glyph_id.0].font_face_index].0,
-                        (
-                            horizontal_advance,
-                            font.font.font_size as f32,
-                            horizontal_advance * font.font.font_size as f32
-                        )
-                    );
-                    return (horizontal_advance * font.font.font_size as f32, glyph_id);
-                }
-            }
+            return (self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32, glyph_id);
         }
 
         return (0.0, glyph_id);
