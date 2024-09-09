@@ -431,6 +431,7 @@ impl Sdf2Table {
                             font_face.to_outline3(g.char),
                             font_face_id.0,
                             glyph_id,
+							font_info.font.is_outer_glow
                         )); // 先取到贝塞尔曲线
                         keys.push(format!(
                             "{}{}",
@@ -492,6 +493,7 @@ impl Sdf2Table {
                                         glyph_visitor.0,
                                         FONT_SIZE,
                                         PXRANGE,
+										glyph_visitor.3
                                     );
                                     let buffer = bincode::serialize(&sdf).unwrap();
                                     stroe::write(key, buffer).await;
@@ -620,7 +622,7 @@ impl Sdf2Table {
             let result1 = result.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let sdfinfo = compute_shape_sdf_tex(info, FONT_SIZE, PXRANGE);
+                    let sdfinfo = compute_shape_sdf_tex(info, FONT_SIZE, PXRANGE, false);
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
                     let mut lock = result1.lock().unwrap();
