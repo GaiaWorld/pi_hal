@@ -65,11 +65,12 @@ pub struct Font {
 	pub font_weight: usize,
 	pub stroke: NotNan<f32>,
 	pub font_type: FontType,
-	pub is_outer_glow: bool
+	pub is_outer_glow: Option<u32>,
+	pub shadow: Option<u32>
 }
 
 impl Font {
-	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize, stroke: NotNan<f32>, is_outer_glow: bool) -> Self {
+	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize, stroke: NotNan<f32>, is_outer_glow: Option<u32>, shadow: Option<u32>) -> Self {
 		let font_family = font_family_string.split(",");
 		let font_family = font_family.map(|r| {
 			Atom::from(r.trim())
@@ -82,7 +83,8 @@ impl Font {
 			font_weight,
 			stroke,
 			font_type: FontType::Bitmap,
-			is_outer_glow
+			is_outer_glow,
+			shadow
 		}
 	}
 }

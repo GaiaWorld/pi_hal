@@ -12,6 +12,7 @@ keywords = ["pi", "hal"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+bytemuck = { version = "1.4", features = [ "derive" ] }
 pi_time = "0.3"
 pi_wgpu = { version = "0.1", registry = "yn"}
 ktx = "0.3"
