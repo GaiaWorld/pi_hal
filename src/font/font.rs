@@ -66,11 +66,11 @@ pub struct Font {
 	pub stroke: NotNan<f32>,
 	pub font_type: FontType,
 	pub is_outer_glow: Option<u32>,
-	pub shadow: Option<u32>
+	pub shadow: Option<( NotNan<f32>,  NotNan<f32>)>
 }
 
 impl Font {
-	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize, stroke: NotNan<f32>, is_outer_glow: Option<u32>, shadow: Option<u32>) -> Self {
+	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize, stroke: NotNan<f32>, is_outer_glow: Option<u32>, shadow: Option<(NotNan<f32>,  NotNan<f32>)>) -> Self {
 		let font_family = font_family_string.split(",");
 		let font_family = font_family.map(|r| {
 			Atom::from(r.trim())

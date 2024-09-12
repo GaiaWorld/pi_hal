@@ -11,13 +11,13 @@ use std::{
     },
 };
 
+use crate::font_brush::SdfAabb;
+use crate::font_brush::SdfArc;
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use crate::font_brush::SdfAabb;
-use crate::font_brush::SdfArc;
 
 // use pi_sdf::utils::GlyphInfo;
 // use pi_sdf::shape::ArcOutline;
@@ -72,6 +72,7 @@ pub struct Sdf2Table {
     pub svg: XHashMap<u64, SvgInfo>,
     pub shapes: XHashMap<u64, TexInfo2>,
     pub bboxs: XHashMap<u64, (Aabb, usize, f32)>,
+    pub texs: XHashMap<u64, Point<usize>>,
 }
 
 impl Sdf2Table {
@@ -105,6 +106,7 @@ impl Sdf2Table {
             bboxs: XHashMap::default(),
             svg: XHashMap::default(),
             shapes: XHashMap::default(),
+            texs: XHashMap::default(),
         }
     }
 
@@ -444,7 +446,7 @@ impl Sdf2Table {
                             font_face_id.0,
                             glyph_id,
                             font_info.font.is_outer_glow,
-							font_info.font.shadow
+                            font_info.font.shadow,
                         )); // 先取到贝塞尔曲线
                         keys.push(format!(
                             "{}{}",
@@ -485,7 +487,8 @@ impl Sdf2Table {
                             key.hash(&mut hasher);
                             let key = hasher.finish().to_string();
                             let result_arcs = if let Some(buffer) = stroe::get(key.clone()).await {
-                                let arcs:  Vec<(Vec<SdfArc>, SdfAabb)> = bincode::deserialize(&buffer[..]).unwrap();
+                                let arcs: Vec<(Vec<SdfArc>, SdfAabb)> =
+                                    bincode::deserialize(&buffer[..]).unwrap();
                                 arcs
                             // log::trace!("store is have: {}, sdf_tex: {}, atlas_bounds: {:?}", temp_key, sdf_tex.len(), atlas_bounds);
                             // (char, plane_bounds, atlas_bounds, advance, sdf_tex, tex_size)
@@ -497,7 +500,7 @@ impl Sdf2Table {
                                 // let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
-									let arcs = glyph_visitor.0.compute_near_arcs(1.0);
+                                    let arcs = glyph_visitor.0.compute_near_arcs(1.0);
                                     let buffer = bincode::serialize(&arcs).unwrap();
                                     stroe::write(key, buffer).await;
                                     arcs
@@ -518,17 +521,47 @@ impl Sdf2Table {
                                     sdf
                                 }
                             };
-							let sdf = if let Some(outer_range) = glyph_visitor.3{
-								glyph_visitor.0.compute_sdf_tex(result_arcs, FONT_SIZE, outer_range, true)
-							}else if let Some(shadow_range)  = glyph_visitor.4{
-								let SdfInfo2 { tex_info, sdf_tex, tex_size } = glyph_visitor.0.compute_sdf_tex(result_arcs, FONT_SIZE, shadow_range + 2, true);
-								let sdf_tex = gaussian_blur(sdf_tex, tex_size as u32, tex_size as u32, shadow_range);
-								SdfInfo2{ tex_info, sdf_tex, tex_size }
-							}else{
-								glyph_visitor.0.compute_sdf_tex(result_arcs, FONT_SIZE, PXRANGE, false)
-							};
-							 
-							
+                            let sdf = if let Some(outer_range) = glyph_visitor.3 {
+                                glyph_visitor.0.compute_sdf_tex(
+                                    result_arcs,
+                                    FONT_SIZE,
+                                    outer_range,
+                                    true,
+                                )
+                            } else if let Some((shadow_range, weight)) = glyph_visitor.4 {
+                                let shadow_range = shadow_range.round() as u32;
+                                let weight = f32::from(weight);
+                                let SdfInfo2 {
+                                    tex_info,
+                                    sdf_tex,
+                                    tex_size,
+                                } = glyph_visitor.0.compute_sdf_tex(
+                                    result_arcs,
+                                    FONT_SIZE,
+                                    shadow_range + 2,
+                                    true,
+                                );
+                                let sdf_tex = gaussian_blur(
+                                    sdf_tex,
+                                    tex_size as u32,
+                                    tex_size as u32,
+                                    shadow_range,
+                                    weight,
+                                );
+                                SdfInfo2 {
+                                    tex_info,
+                                    sdf_tex,
+                                    tex_size,
+                                }
+                            } else {
+                                glyph_visitor.0.compute_sdf_tex(
+                                    result_arcs,
+                                    FONT_SIZE,
+                                    PXRANGE,
+                                    false,
+                                )
+                            };
+
                             // log::debug!("load========={:?}, {:?}", lock.0, len);
                             let mut lock = result1.lock().unwrap();
                             lock.0 += 1;
@@ -626,11 +659,23 @@ impl Sdf2Table {
         ]));
         let hash = hasher.finish();
         self.bboxs.insert(hash, (bbox, tex_size, pxrang));
-		hash
+        hash
     }
 
-	pub fn has_box(&mut self, hash: u64) -> bool {
+    pub fn has_box(&mut self, hash: u64) -> bool {
         self.shapes.get(&hash).is_some()
+    }
+
+    pub fn allow_tex(&mut self, hash: u64, width: usize, height: usize) -> (usize, usize) {
+        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
+        let index_tex_position = index_packer.alloc(width as usize, height as usize);
+        match index_tex_position {
+            Some(r) => {
+                self.texs.insert(hash, r);
+                (r.x, r.y)
+            }
+            None => panic!("aaaa================"),
+        }
     }
 
     /// 更新字形信息（计算圆弧信息）
@@ -683,11 +728,16 @@ impl Sdf2Table {
 
         while let Some((hash, (tex, w, h, bbox))) = r.pop() {
             // 索引纹理更新
-            let index_tex_position = index_packer.alloc(w as usize, h as usize);
-            let index_position = match index_tex_position {
-                Some(r) => r,
-                None => panic!("aaaa================"),
+            let index_position = if let Some(p) = self.texs.get(&hash) {
+                p.clone()
+            } else {
+                let index_tex_position = index_packer.alloc(w as usize, h as usize);
+                match index_tex_position {
+                    Some(r) => r,
+                    None => panic!("aaaa================"),
+                }
             };
+
             let index_img = FontImage {
                 width: w as usize,
                 height: h as usize,
