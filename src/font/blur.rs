@@ -51,12 +51,14 @@ fn get_shadow_alpha(pos: Point, pt_min: &Point, pt_max: &Point, sigma: f32) -> f
     return color_from_rect(d_min, d_max, sigma);
 }
 
-pub fn blur_box(bbox: Aabb, sigma: f32, txe_size: usize) -> (Vec<u8>, u32, u32, Aabb) {
+pub fn blur_box(bbox: Aabb, pxrange: f32, txe_size: usize) -> (Vec<u8>, u32, u32, Aabb) {
     let b_w = bbox.maxs.x - bbox.mins.x;
     let b_h = bbox.maxs.y - bbox.mins.y;
     let px_dsitance = b_h.max(b_w) / txe_size as f32;
 
-    let px_num = (sigma + sigma * 5.0).ceil();
+    // let px_num = (sigma + sigma * 5.0).ceil();
+    let px_num = (pxrange * 0.5).ceil();
+    let sigma = px_num / 6.0;
     let dsitance = px_dsitance * px_num;
     println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance));
     let p_w = (b_w / px_dsitance).ceil() + px_num * 2.0;
@@ -77,4 +79,73 @@ pub fn blur_box(bbox: Aabb, sigma: f32, txe_size: usize) -> (Vec<u8>, u32, u32, 
     let atlas_bounds = Aabb::new(Point::new(px_num, px_num), Point::new(p_w - px_num, p_h - px_num));
     println!("atlasBounds: {:?}", atlas_bounds);
     (pixmap, p_w as u32, p_h as u32, atlas_bounds)
+}
+
+
+pub fn gaussian_blur(sdf_tex: Vec<u8>, width: u32, height: u32, radius: u32, weight: f32) -> Vec<u8> {
+    // let (width, height) = img.dimensions();
+    let mut output = Vec::with_capacity(sdf_tex.len());
+
+    let kernel = create_gaussian_kernel(radius);
+    let kernel_size = kernel.len() as u32;
+
+    for y in 0..height {
+        for x in 0..width {
+            // let mut r = 0.0;
+            // let mut g = 0.0;
+            // let mut b = 0.0;
+            let mut a = 0.0;
+            let mut weight_sum = 0.0;
+
+            for ky in 0..kernel_size {
+                for kx in 0..kernel_size {
+                    let px = (x as i32 + kx as i32 - radius as i32).clamp(0, width as i32 - 1) as u32;
+                    let py = (y as i32 + ky as i32 - radius as i32).clamp(0, height as i32 - 1) as u32;
+
+                    let sdf = sdf_tex[(px + py * width) as usize] as f32 / 255.0;
+                    let fill_sd_px = sdf - weight;
+                    let pixel = (fill_sd_px + 0.5).clamp(0.0, 1.0);
+
+                    let weight = kernel[ky as usize][kx as usize];
+
+                    // r += pixel[0] as f32 * weight;
+                    // g += pixel[1] as f32 * weight;
+                    // b += pixel[2] as f32 * weight;
+                    a += pixel as f32 * weight;
+                    weight_sum += weight;
+                }
+            }
+
+            let pixel = (a / weight_sum * 255.0) as u8;
+
+            output.push( pixel);
+        }
+    }
+
+    output
+}
+
+fn create_gaussian_kernel(radius: u32) -> Vec<Vec<f32>> {
+    let sigma = radius as f32 / 2.0;
+    let size = radius * 2 + 1;
+    let mut kernel = vec![vec![0.0; size as usize]; size as usize];
+    let mut sum = 0.0;
+
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x as f32 - radius as f32;
+            let dy = y as f32 - radius as f32;
+            let value = (-((dx * dx + dy * dy) / (2.0 * sigma * sigma))).exp() / (2.0 * std::f32::consts::PI * sigma * sigma);
+            kernel[y as usize][x as usize] = value;
+            sum += value;
+        }
+    }
+
+    for y in 0..size {
+        for x in 0..size {
+            kernel[y as usize][x as usize] /= sum;
+        }
+    }
+
+    kernel
 }
