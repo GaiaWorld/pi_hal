@@ -1,6 +1,6 @@
 
 
-use super::{bitmap_table::BitmapTable, font::{FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}};
+use super::{bitmap_table::BitmapTable, font::{FontFaceId, FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}};
 
 pub struct FontTable {
 	// 本地画笔，用于测量、绘制文字，不同平台可能有不同的实现（web平台依赖于canvas的文字功能， app、exe平台通常可以使用freetype）
@@ -71,6 +71,16 @@ impl FontTable {
 			todo!()
 		} else if font_type == FontType::Sdf2 {
 			self.sdf2_table.metrics(id, font)
+		} else {
+			todo!()
+		}
+	}
+
+	pub fn fontface_metrics(&self, face_id: FontFaceId, font_type: FontType) -> Option<&MetricsInfo> {
+        if font_type == FontType::Sdf1 {
+			todo!()
+		} else if font_type == FontType::Sdf2 {
+			self.sdf2_table.fontface_metrics(face_id)
 		} else {
 			todo!()
 		}

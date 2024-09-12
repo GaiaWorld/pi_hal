@@ -11,6 +11,7 @@ use parry2d::bounding_volume::Aabb;
 use pi_hash::XHashMap;
 use pi_slotmap::{DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
+use pi_null::Null;
 
 use pi_atom::Atom;
 use smallvec::SmallVec;
@@ -301,6 +302,18 @@ impl FontMgr {
 			None => return None,
 		};
 		self.table.metrics(id, font_info, self.font_type)
+	}
+
+	pub fn font_metrics(&self, font_id: FontId) -> Option<&MetricsInfo> {
+		let font_info = match self.sheet.fonts.get(font_id.0) {
+			Some(r) => r,
+			None => return None,
+		};
+		if font_info.font_ids.len() > 0 &&  font_info.font_ids[0].0.is_null(){
+			return self.table.fontface_metrics(font_info.font_ids[0], self.font_type)
+		}
+		
+		return None;
 	}
 
 	// /// 取到字形信息
