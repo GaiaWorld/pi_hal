@@ -43,12 +43,18 @@ pub use crate::font_brush::TexInfo;
 static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 
-static FONT_SIZE: usize = 32;
-static PXRANGE: u32 = 10;
+pub static FONT_SIZE: usize = 32;
+pub static PXRANGE: u32 = 10;
 // /// 二维装箱
 // pub struct Packer2D {
 
 // }
+
+
+// 此函数决将绘制的字体字号映射为需要的sdf字号（因为一些文字很大时， 小的sdf纹理， 不能满足其精度需求）
+pub fn sdf_font_size(_font_size: usize) -> usize {
+    FONT_SIZE
+}
 
 pub struct Sdf2Table {
     pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontFaceId
@@ -169,6 +175,14 @@ impl Sdf2Table {
                 return None;
             }
         } 
+	}
+
+    pub fn fontface_metrics(&self, face_id: FontFaceId) -> Option<&MetricsInfo> {
+        if let Some(r) = self.metrics.get(face_id.0) {
+            return Some(r);
+        } else {
+            return None;
+        }
 	}
 
     // 文字宽度
