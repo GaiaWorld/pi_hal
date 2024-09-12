@@ -18,7 +18,7 @@ use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 
 use super::{
     computeSdfTex, debugSize, drawChar, drawCharWithStroke, fillBackGround, free,
-    getGlobalMetricsHeight, glyphIndex, loadFontSdf, setFont, toOutline, toOutline3,
+    getGlobalMetricsHeight, glyphIndex, loadFontSdf, setFont, toOutline, toOutline3, computeNearArcs
 };
 
 pub struct Brush {
@@ -226,6 +226,29 @@ pub struct SdfInfo2 {
 }
 
 #[derive(Clone)]
+pub struct Outline(JsValue);
+
+impl Outline {
+    pub async fn compute_near_arcs(&self, scale: f32) -> Vec<u8>{
+        let buf = computeNearArcs(self.0.clone(), scale).await;
+        let buf = js_sys::Uint8Array::from(buf).to_vec();
+        buf
+    }
+
+    pub async fn compute_sdf_tex(&self, scale: f32) -> Vec<u8>{
+        let buf = computeNearArcs(self.0.clone(), scale).await;
+        let buf = js_sys::Uint8Array::from(buf).to_vec();
+        buf
+    }
+}
+
+impl Drop for Outline {
+    fn drop(&mut self) {
+        free(self.0.clone());
+    }
+}
+
+#[derive(Clone)]
 pub struct FontFace(JsValue);
 
 impl FontFace {
@@ -264,14 +287,14 @@ impl FontFace {
         return descender(self.0.clone());
     }
 
-    pub fn max_box(&self) -> Aabb {
+    pub fn max_box(&self) -> (Aabb,) {
         let v = maxBox(self.0.clone());
 
         let arr = js_sys::Float32Array::from(v);
-        Aabb::new(
+        (Aabb::new(
             Point::new(arr.get_index(0), arr.get_index(1)),
             Point::new(arr.get_index(2), arr.get_index(3)),
-        )
+        ),)
     }
 
     pub fn max_box_normaliz(&self) -> Aabb {
@@ -287,8 +310,8 @@ impl FontFace {
         toOutline(self.0.clone(), c.to_string())
     }
 
-    pub fn to_outline3(&self, c: char) -> JsValue {
-        toOutline3(self.0.clone(), c.to_string())
+    pub fn to_outline3(&self, c: char) -> Outline {
+        Outline(toOutline3(self.0.clone(), c.to_string()))
     }
 
     pub fn glyph_index(&self, c: char) -> u16 {

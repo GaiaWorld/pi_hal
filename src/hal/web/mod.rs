@@ -85,6 +85,7 @@ extern "C" {
     pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
     pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
+    pub async fn computeNearArcs(info: JsValue, scale: f32) -> JsValue;
     pub fn createSvgInfo(bbox: Vec<f32>, arc_endpoints: Vec<u8>) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
     pub async fn loadFontSdf() -> JsValue;

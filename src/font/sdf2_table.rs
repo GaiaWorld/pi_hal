@@ -69,10 +69,10 @@ pub struct Sdf2Table {
     pub(crate) index_packer: TextPacker,
     pub data_packer: TextPacker,
     // pub(crate) size: Size<usize>,
-    pub svg: XHashMap<u64, SvgInfo>,
+    pub svg: XHashMap<u64, (SvgInfo, usize, u32, u32)>,
     pub shapes: XHashMap<u64, TexInfo2>,
     pub bboxs: XHashMap<u64, (Aabb, usize, f32)>,
-    pub texs: XHashMap<u64, Point<usize>>,
+    // pub texs: XHashMap<u64, Point<usize>>,
 }
 
 impl Sdf2Table {
@@ -106,7 +106,7 @@ impl Sdf2Table {
             bboxs: XHashMap::default(),
             svg: XHashMap::default(),
             shapes: XHashMap::default(),
-            texs: XHashMap::default(),
+            // texs: XHashMap::default(),
         }
     }
 
@@ -666,17 +666,17 @@ impl Sdf2Table {
         self.shapes.get(&hash).is_some()
     }
 
-    pub fn allow_tex(&mut self, hash: u64, width: usize, height: usize) -> (usize, usize) {
-        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
-        let index_tex_position = index_packer.alloc(width as usize, height as usize);
-        match index_tex_position {
-            Some(r) => {
-                self.texs.insert(hash, r);
-                (r.x, r.y)
-            }
-            None => panic!("aaaa================"),
-        }
-    }
+    // pub fn allow_tex(&mut self, hash: u64, width: usize, height: usize) -> (usize, usize) {
+    //     let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
+    //     let index_tex_position = index_packer.alloc(width as usize, height as usize);
+    //     match index_tex_position {
+    //         Some(r) => {
+    //             self.texs.insert(hash, r);
+    //             (r.x, r.y)
+    //         }
+    //         None => panic!("aaaa================"),
+    //     }
+    // }
 
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_box_shadow_await(
@@ -728,8 +728,10 @@ impl Sdf2Table {
 
         while let Some((hash, (tex, w, h, bbox))) = r.pop() {
             // 索引纹理更新
-            let index_position = if let Some(p) = self.texs.get(&hash) {
-                p.clone()
+            let mut is_have = false;
+            let index_position = if let Some(p) = self.shapes.get(&hash) {
+                is_have = true;
+                Point::new(p.sdf_offset_x, p.sdf_offset_y) 
             } else {
                 let index_tex_position = index_packer.alloc(w as usize, h as usize);
                 match index_tex_position {
@@ -743,14 +745,7 @@ impl Sdf2Table {
                 height: h as usize,
                 buffer: tex,
             };
-            let mut tex_info = TexInfo2::default();
-
-            tex_info.sdf_offset_x = index_position.x;
-            tex_info.sdf_offset_x = index_position.y;
-            tex_info.atlas_min_x = bbox.mins.x;
-            tex_info.atlas_min_y = bbox.mins.y;
-            tex_info.atlas_max_x = bbox.maxs.x;
-            tex_info.atlas_max_y = bbox.maxs.y;
+           
 
             let index_block = Block {
                 x: index_position.x as f32,
@@ -761,7 +756,18 @@ impl Sdf2Table {
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(index_block, index_img);
 
-            shapes.insert(hash, tex_info);
+          if !is_have{
+                let mut tex_info = TexInfo2::default();
+
+                tex_info.sdf_offset_x = index_position.x;
+                tex_info.sdf_offset_x = index_position.y;
+                tex_info.atlas_min_x = bbox.mins.x;
+                tex_info.atlas_min_y = bbox.mins.y;
+                tex_info.atlas_max_x = bbox.maxs.x;
+                tex_info.atlas_max_y = bbox.maxs.y;
+
+                shapes.insert(hash, tex_info);
+          }
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
     }
@@ -770,17 +776,53 @@ impl Sdf2Table {
         // self.svg.view_box = Aabb::new(Point::new(mins_x, mins_y), Point::new(maxs_x, maxs_y))
     }
 
-    pub fn add_shape(&mut self, hash: u64, info: SvgInfo) {
-        self.svg.insert(hash, info);
+    pub fn add_shape(
+        &mut self,
+        hash: u64,
+        info: SvgInfo,
+        tex_size: usize,
+        pxrang: u32,
+        cut_off: u32,
+    ) {
+        let info2 = info.compute_layout(tex_size, pxrang);
+
+        let mut texinfo = TexInfo2 {
+            sdf_offset_x: 0,
+            sdf_offset_y: 0,
+            advance: 0.0,
+            char: ' ',
+            plane_min_x: info2[0],
+            plane_min_y: info2[1],
+            plane_max_x: info2[2],
+            plane_max_y: info2[3],
+            atlas_min_x: info2[4],
+            atlas_min_y: info2[5],
+            atlas_max_x: info2[6],
+            atlas_max_y: info2[7],
+        };
+        // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
+        let index_tex_position = self
+            .index_packer
+            .alloc(info2[8] as usize, info2[8] as usize);
+        match index_tex_position {
+            Some(r) => {
+                texinfo.sdf_offset_x = r.x;
+                texinfo.sdf_offset_y = r.y;
+            }
+            None => panic!("aaaa================"),
+        }
+
+        self.shapes.insert(hash, texinfo);
+        self.svg.insert(hash, (info, tex_size, pxrang, cut_off));
     }
 
-    pub fn has_shape(&mut self, hash: u64) -> bool {
-        self.svg.get(&hash).is_some()
+    pub fn get_shape(&mut self, hash: u64) -> Option<&TexInfo2> {
+        self.shapes.get(&hash)
     }
 
     /// 更新svg信息（计算圆弧信息）
     pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>>> {
-        let await_count = self.svg.len();
+        let await_count = self.shapes.len();
 
         let texture_data = Vec::with_capacity(await_count);
         let result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>> =
@@ -788,12 +830,12 @@ impl Sdf2Table {
         let async_value = AsyncValue::new();
 
         // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-        for (hash, info) in self.svg.drain() {
+        for (hash, (info, size, pxrange, cur_off)) in self.svg.drain() {
             let async_value1 = async_value.clone();
             let result1 = result.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let sdfinfo = compute_shape_sdf_tex(info, FONT_SIZE, PXRANGE, false);
+                    let sdfinfo = compute_shape_sdf_tex(info, size, pxrange, false);
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
                     let mut lock = result1.lock().unwrap();
