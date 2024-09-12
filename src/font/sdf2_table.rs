@@ -798,7 +798,7 @@ impl Sdf2Table {
         pxrang: u32,
         cut_off: u32,
     ) {
-        let info2 = info.compute_layout(tex_size, pxrang);
+        let info2 = info.compute_layout(tex_size, pxrang, cut_off);
 
         let mut texinfo = TexInfo2 {
             sdf_offset_x: 0,
@@ -849,7 +849,7 @@ impl Sdf2Table {
             let result1 = result.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let sdfinfo = compute_shape_sdf_tex(info, size, pxrange, false);
+                    let sdfinfo = compute_shape_sdf_tex(info, size, pxrange, false, cur_off);
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
                     let mut lock = result1.lock().unwrap();
