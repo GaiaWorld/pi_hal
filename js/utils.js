@@ -167,7 +167,7 @@ export function getSvgInfo(shape){}
 
 export function computerSvgSdf(svg_info){}
 
-export async function computeShapeSdfTex(info, size, pxrange){}
+export async function computeShapeSdfTex(info, size, pxrange, is_outer_glow, cur_off){}
 
 export async function computeArcsSdfTex(info, size, pxrange) {}
 
