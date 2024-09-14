@@ -835,12 +835,13 @@ impl Sdf2Table {
     }
 
     /// 更新svg信息（计算圆弧信息）
-    pub fn draw_svg_await(&mut self) -> AsyncValue<Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>>> {
+    pub fn draw_svg_await(&mut self, result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>>) -> AsyncValue<()> {
         let await_count = self.shapes.len();
 
-        let texture_data = Vec::with_capacity(await_count);
-        let result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>> =
-            Share::new(ShareMutex::new((0, texture_data)));
+        // let texture_data = Vec::with_capacity(await_count);
+        result.lock().unwrap().1.reserve(await_count);
+        // let result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>> =
+        //     Share::new(ShareMutex::new((0, texture_data)));
         let async_value = AsyncValue::new();
 
         // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
@@ -858,7 +859,7 @@ impl Sdf2Table {
                     lock.1.push((hash, sdfinfo));
                     if lock.0 == await_count {
                         log::trace!("encode_data_tex1");
-                        async_value1.set(result1.clone());
+                        async_value1.set(());
                         log::trace!("encode_data_tex2");
                     }
                 })
