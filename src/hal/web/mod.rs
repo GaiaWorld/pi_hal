@@ -83,7 +83,7 @@ extern "C" {
     pub fn createPath(verb: Vec<u8>, points: Vec<f32>) -> JsValue;
     pub fn getSvgInfo(shape: JsValue) -> JsValue;
     pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
-    pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
+    pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
     pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub async fn computeNearArcs(info: JsValue, scale: f32) -> JsValue;
     pub fn createSvgInfo(bbox: Vec<f32>, arc_endpoints: Vec<u8>) -> JsValue;

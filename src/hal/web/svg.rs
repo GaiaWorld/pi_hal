@@ -161,7 +161,7 @@ pub fn computer_svg_sdf(info: SvgInfo) -> SdfInfo {
     sdf_info
 }
 
-pub fn compute_shape_sdf_tex(info: SvgInfo, size: usize, pxrange: u32) -> SdfInfo2 {
+pub fn compute_shape_sdf_tex(info: SvgInfo, tex_size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> SdfInfo2 {
     let v = computeShapeSdfTex(info.0.clone(), size, pxrange);
     let buf = js_sys::Uint8Array::from(v).to_vec();
 

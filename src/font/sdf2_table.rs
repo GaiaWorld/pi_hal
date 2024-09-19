@@ -10,7 +10,7 @@ use std::{
         Arc, Mutex, OnceLock,
     },
 };
-
+use crate::font_brush::CellInfo;
 use crate::font_brush::SdfAabb;
 use crate::font_brush::SdfArc;
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -501,7 +501,7 @@ impl Sdf2Table {
                             key.hash(&mut hasher);
                             let key = hasher.finish().to_string();
                             let result_arcs = if let Some(buffer) = stroe::get(key.clone()).await {
-                                let arcs: Vec<(Vec<SdfArc>, SdfAabb)> =
+                                let arcs: CellInfo  =
                                     bincode::deserialize(&buffer[..]).unwrap();
                                 arcs
                             // log::trace!("store is have: {}, sdf_tex: {}, atlas_bounds: {:?}", temp_key, sdf_tex.len(), atlas_bounds);
