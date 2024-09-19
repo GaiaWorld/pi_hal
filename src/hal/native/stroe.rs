@@ -50,7 +50,7 @@ pub async fn write(key: String, data: Vec<u8>) {
     if let Some(path) = STROE_PATH.read().as_ref() {
         let path = PathBuf::from_str(path).unwrap();
         let path = path.join("sdf_font").join(key);
-        std::fs::write(path, data).unwrap();
+        let _ = std::fs::write(path, data);
     }
 }
 
@@ -58,12 +58,9 @@ pub async fn write(key: String, data: Vec<u8>) {
  * 从indexDb删除数据
  */
 pub async fn delete_key(key: String) {
-    let mut hash = key.to_string();
-    hash.push_str(STORE_DELETE_KEY);
-
-    let mut hasher = DefaultHasher::new();
-    hash.hash(&mut hasher);
-
-    let v = create_async_value("store", "delete", hasher.finish(), vec![Arg::String(key)]);
-    let _ = v.await;
+    if let Some(path) = STROE_PATH.read().as_ref() {
+        let path = PathBuf::from_str(path).unwrap();
+        let path = path.join("sdf_font").join(key);
+        let _ = std::fs::remove_file(path);
+    }
 }
