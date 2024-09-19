@@ -75,7 +75,7 @@ pub struct Sdf2Table {
     pub(crate) index_packer: TextPacker,
     pub data_packer: TextPacker,
     // pub(crate) size: Size<usize>,
-    pub svg: XHashMap<u64, (SvgInfo, usize, u32, u32)>,
+    pub svg: XHashMap<u64, (SvgInfo, usize, u32, u32, usize, usize)>,
     pub shapes: XHashMap<u64, TexInfo2>,
     pub bboxs: XHashMap<u64, (Aabb, usize, f32)>,
     // pub texs: XHashMap<u64, Point<usize>>,
@@ -818,6 +818,7 @@ impl Sdf2Table {
         let index_tex_position = self
             .index_packer
             .alloc(info2[8] as usize, info2[8] as usize);
+        
         match index_tex_position {
             Some(r) => {
                 texinfo.sdf_offset_x = r.x;
@@ -826,8 +827,8 @@ impl Sdf2Table {
             None => panic!("aaaa================"),
         }
 
+        self.svg.insert(hash, (info, tex_size, pxrang, cut_off, texinfo.sdf_offset_x, texinfo.sdf_offset_y));
         self.shapes.insert(hash, texinfo);
-        self.svg.insert(hash, (info, tex_size, pxrang, cut_off));
     }
 
     pub fn get_shape(&mut self, hash: u64) -> Option<&TexInfo2> {
@@ -845,12 +846,14 @@ impl Sdf2Table {
         let async_value = AsyncValue::new();
 
         // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-        for (hash, (info, size, pxrange, cur_off)) in self.svg.drain() {
+        for (hash, (info, size, pxrange, cur_off, x, y)) in self.svg.drain() {
             let async_value1 = async_value.clone();
             let result1 = result.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let sdfinfo = compute_shape_sdf_tex(info, size, pxrange, false, cur_off);
+                    let mut sdfinfo = compute_shape_sdf_tex(info, size, pxrange, false, cur_off);
+                    sdfinfo.tex_info.sdf_offset_x = x;
+                    sdfinfo.tex_info.sdf_offset_y = y;
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
                     let mut lock = result1.lock().unwrap();
@@ -873,9 +876,9 @@ impl Sdf2Table {
         update: F,
         result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>>,
     ) {
-        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
+        // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
-        let shapes: &'static mut XHashMap<u64, TexInfo2> = unsafe { transmute(&mut self.shapes) };
+        // let shapes: &'static mut XHashMap<u64, TexInfo2> = unsafe { transmute(&mut self.shapes) };
 
         let mut lock = result.lock().unwrap();
         let r = &mut lock.1;
@@ -891,28 +894,28 @@ impl Sdf2Table {
         )) = r.pop()
         {
             // 索引纹理更新
-            let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
-            let index_position = match index_tex_position {
-                Some(r) => r,
-                None => panic!("aaaa================"),
-            };
+            // let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
+            // let index_position = match index_tex_position {
+            //     Some(r) => r,
+            //     None => panic!("aaaa================"),
+            // };
             let index_img = FontImage {
                 width: tex_size as usize,
                 height: tex_size as usize,
                 buffer: sdf_tex,
             };
-            tex_info.sdf_offset_x = index_position.x;
-            tex_info.sdf_offset_x = index_position.y;
+            // tex_info.sdf_offset_x = index_position.x;
+            // tex_info.sdf_offset_x = index_position.y;
             let index_block = Block {
-                x: index_position.x as f32,
-                y: index_position.y as f32,
+                x: tex_info.sdf_offset_x as f32,
+                y: tex_info.sdf_offset_y as f32,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
-            // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
+            log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), tex_info.sdf_offset_x as f32, tex_info.sdf_offset_y as f32) );
             (update.clone())(index_block, index_img);
 
-            shapes.insert(hash, tex_info);
+            // shapes.insert(hash, tex_info);
 
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
