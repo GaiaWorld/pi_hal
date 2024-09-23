@@ -1014,7 +1014,7 @@ impl Sdf2Table {
         while let Some((hash, box_info, tex)) = r.pop() {
             // 索引纹理更新
             let mut is_have = false;
-            let index_position = if let Some(info) = self.shapes_shadow_tex_info.get(&(hash, 0)) {
+            let index_position = if let Some(info) = self.shapes_shadow_tex_info.get(&(hash, box_info.radius)) {
                 is_have = true;
                 Point::new(
                     info.x - box_info.atlas_bounds.mins.x,

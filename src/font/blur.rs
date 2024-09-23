@@ -86,6 +86,7 @@ pub struct BoxInfo {
     sigma: f32,
     pub atlas_bounds: Aabb,
     bbox: Aabb,
+    pub radius: u32
 }
 
 pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
@@ -121,7 +122,8 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
         px_dsitance,
         sigma,
         atlas_bounds,
-        bbox
+        bbox,
+        radius
     }
 }
 
