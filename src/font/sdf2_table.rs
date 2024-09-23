@@ -1116,8 +1116,8 @@ impl Sdf2Table {
             };
 
             let index_block = Block {
-                x: index_position.x - box_info.atlas_bounds.mins.x as f32,
-                y: index_position.y - box_info.atlas_bounds.mins.y as f32,
+                x: index_position.x - box_info.atlas_bounds.mins.x as f32 + 1.0,
+                y: index_position.y - box_info.atlas_bounds.mins.y as f32 + 1.0,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
@@ -1267,8 +1267,8 @@ impl Sdf2Table {
             // tex_info.sdf_offset_x = index_position.x;
             // tex_info.sdf_offset_x = index_position.y;
             let index_block = Block {
-                x: index_position.x - tex_info.atlas_min_x as f32,
-                y: index_position.y - tex_info.atlas_min_y as f32,
+                x: index_position.x - tex_info.atlas_min_x as f32 + 1.0,
+                y: index_position.y - tex_info.atlas_min_y as f32 + 1.0,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
