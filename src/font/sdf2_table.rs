@@ -22,13 +22,15 @@ use std::{
     },
 };
 
-#[derive(Clone)]
-pub struct SdfResult {
-    // pub task_count: Arc<AtomicUsize>,
-    pub font_result: Arc<ShareMutex<Vec<(DefaultKey, SdfInfo2, SdfType)>>>,
-    pub svg_result: Arc<ShareMutex<Vec<(u64, SdfInfo2, SdfType)>>>,
-    pub box_result: Arc<ShareMutex<Vec<(u64, BoxInfo, Vec<u8>)>>>,
+#[derive(Default, Debug)]
+pub struct SdfResultInner {
+    pub font_result: Vec<(DefaultKey, SdfInfo2, SdfType)>,
+    pub svg_result: Vec<(u64, SdfInfo2, SdfType)>,
+    pub box_result: Vec<(u64, BoxInfo, Vec<u8>)>,
 }
+
+#[derive(Debug, Default, Clone)]
+ pub struct SdfResult(pub Arc<ShareMutex<SdfResultInner>>);
 // use pi_sdf::utils::GlyphInfo;
 // use pi_sdf::shape::ArcOutline;
 use crate::font_brush::TexInfo2;
@@ -111,6 +113,7 @@ pub struct Sdf2Table {
     pub shapes_outer_glow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
 }
 
+#[derive(Debug)]
 pub enum SdfType {
     Normal,
     Shadow(u32, NotNan<f32>),
@@ -621,20 +624,20 @@ impl Sdf2Table {
         let async_value = AsyncValue::new();
         self.draw_font_await(
             fonts,
-            result.font_result.clone(),
+            result.clone(),
             index,
             task_count.clone(),
             task_num.clone(),
             async_value.clone(),
         );
         self.draw_svg_await(
-            result.svg_result.clone(),
+            result.clone(),
             task_count.clone(),
             task_num.clone(),
             async_value.clone(),
         );
         self.draw_box_shadow_await(
-            result.box_result.clone(),
+            result.clone(),
             task_count.clone(),
             task_num.clone(),
             async_value.clone(),
@@ -647,7 +650,7 @@ impl Sdf2Table {
     pub fn draw_font_await(
         &mut self,
         fonts: &mut SlotMap<DefaultKey, FontInfo>,
-        result: Arc<Mutex<Vec<(DefaultKey, SdfInfo2, SdfType)>>>,
+        result: SdfResult,
         index: usize,
         task_count: Arc<AtomicUsize>,
         task_num: Arc<AtomicUsize>,
@@ -717,7 +720,7 @@ impl Sdf2Table {
             }
         }
 
-        *result.lock().unwrap() = Vec::with_capacity(await_count.load(Ordering::Relaxed));
+        result.0.lock().unwrap().font_result = Vec::with_capacity(await_count.load(Ordering::Relaxed));
 
         let mut ll = 0;
 
@@ -781,7 +784,7 @@ impl Sdf2Table {
                                     sdf
                                 }
                             };
-                            let mut lock = result.lock().unwrap();
+                            let lock = &mut result.0.lock().unwrap().font_result;
                             let sdf = glyph_visitor.0.compute_sdf_tex(
                                 result_arcs.clone(),
                                 FONT_SIZE,
@@ -865,29 +868,25 @@ impl Sdf2Table {
         // mut updtae_shadow: F1,
         result: SdfResult,
     ) {
-        let SdfResult {
-            font_result,
-            svg_result,
-            box_result,
-        } = result;
-        self.update_font(update.clone(), font_result);
-        self.update_box_shadow(update.clone(), box_result);
-        self.update_svg(update, svg_result);
+        let mut result = result.0.lock().unwrap();
+        self.update_font(update.clone(), &mut result.font_result);
+        self.update_box_shadow(update.clone(), &mut result.box_result);
+        self.update_svg(update, &mut result.svg_result);
     }
 
     pub fn update_font<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
         // mut updtae_shadow: F1,
-        result: Arc<ShareMutex<Vec<(DefaultKey, SdfInfo2, SdfType)>>>,
+        result: &mut Vec<(DefaultKey, SdfInfo2, SdfType)>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
         let glyphs: &'static mut SlotMap<DefaultKey, GlyphIdDesc> =
             unsafe { transmute(&mut self.glyphs) };
 
-        let mut lock = result.lock().unwrap();
-        let r = &mut lock;
+        // let mut lock = result.lock().unwrap();
+        let r =  result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
@@ -972,7 +971,7 @@ impl Sdf2Table {
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_box_shadow_await(
         &mut self,
-        result: Arc<ShareMutex<Vec<(u64, BoxInfo, Vec<u8>)>>>,
+        result: SdfResult,
         task_count: Arc<AtomicUsize>,
         task_num: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
@@ -993,7 +992,7 @@ impl Sdf2Table {
                     let sdfinfo = blur_box(box_info.clone());
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
-                    let mut lock = result1.lock().unwrap();
+                    let lock = &mut result1.0.lock().unwrap().box_result;
                     task_num.fetch_add(1, Ordering::Relaxed);
                     // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
                     lock.push((hash, box_info, sdfinfo));
@@ -1011,15 +1010,15 @@ impl Sdf2Table {
     pub fn update_box_shadow<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result: Arc<ShareMutex<Vec<(u64, BoxInfo, Vec<u8>)>>>,
+        result:&mut  Vec<(u64, BoxInfo, Vec<u8>)>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
         // let shapes: &'static mut XHashMap<u64, TexInfo2> =
         //     unsafe { transmute(&mut self.shapes_tex_info) };
 
-        let mut lock = result.lock().unwrap();
-        let r = &mut lock;
+        // let mut lock = result.lock().unwrap();
+        let r = result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((hash, box_info, tex)) = r.pop() {
@@ -1081,7 +1080,7 @@ impl Sdf2Table {
     /// 更新svg信息（计算圆弧信息）
     pub fn draw_svg_await(
         &mut self,
-        result: Arc<ShareMutex<Vec<(u64, SdfInfo2, SdfType)>>>,
+        result: SdfResult,
         task_count: Arc<AtomicUsize>,
         task_num: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
@@ -1106,7 +1105,7 @@ impl Sdf2Table {
             let await_count = await_count.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let mut lock = result1.lock().unwrap();
+                    let lock = &mut result1.0.lock().unwrap().svg_result;
                     let sdfinfo =
                         compute_shape_sdf_tex(info.clone(), size, pxrange, false, cur_off);
                     lock.push((hash, sdfinfo.clone(), SdfType::Normal));
@@ -1161,15 +1160,15 @@ impl Sdf2Table {
     pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result: Arc<ShareMutex<Vec<(u64, SdfInfo2, SdfType)>>>,
+         result: &mut Vec<(u64, SdfInfo2, SdfType)>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
         // let shapes: &'static mut XHashMap<u64, TexInfo2> =
         //     unsafe { transmute(&mut self.shapes_tex_info) };
 
-        let mut lock = result.lock().unwrap();
-        let r = &mut lock;
+        // let mut lock = result.lock().unwrap();
+        let r =  result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
