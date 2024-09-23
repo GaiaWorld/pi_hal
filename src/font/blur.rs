@@ -61,10 +61,10 @@ pub fn blur_box(info: BoxInfo) -> Vec<u8> {
         bbox,
         ..
     } = info;
-    let mut pixmap = vec![0; (info.p_w * info.p_h) as usize];
+    let mut pixmap = vec![0; (p_w * p_h) as usize];
 
-    for i in 0..info.p_w as usize {
-        for j in 0..info.p_h as usize {
+    for i in 0..p_w as usize {
+        for j in 0..p_h as usize {
             let pos = Point::new(
                 start.x + i as f32 * px_dsitance,
                 start.y + j as f32 * px_dsitance,
@@ -103,7 +103,7 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance, bbox));
     let p_w = (b_w / px_dsitance).ceil() + px_num2 * 2.0;
     let p_h = (b_h / px_dsitance).ceil() + px_num2 * 2.0;
-    let mut pixmap = vec![0; (p_w * p_h) as usize];
+    // let mut pixmap = vec![0; (p_w * p_h) as usize];
     println!("{:?}", (p_w, p_h));
     let start = Point::new(bbox.mins.x - dsitance, bbox.mins.y - dsitance);
 

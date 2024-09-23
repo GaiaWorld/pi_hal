@@ -7,6 +7,8 @@ use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
+use pi_sdf::utils::compute_layout;
+use pi_sdf::utils::OutlineInfo;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
@@ -30,7 +32,7 @@ pub struct SdfResultInner {
 }
 
 #[derive(Debug, Default, Clone)]
- pub struct SdfResult(pub Arc<ShareMutex<SdfResultInner>>);
+pub struct SdfResult(pub Arc<ShareMutex<SdfResultInner>>);
 // use pi_sdf::utils::GlyphInfo;
 // use pi_sdf::shape::ArcOutline;
 use crate::font_brush::TexInfo2;
@@ -86,6 +88,7 @@ pub struct Sdf2Table {
 
     pub(crate) index_packer: TextPacker,
     pub data_packer: TextPacker,
+    pub outline_info: XHashMap<(DefaultKey, char), OutlineInfo>,
 
     // 字体阴影参数， u32: 模糊半径; NotNan<f32>: 粗体正常和细体
     pub font_shadow: XHashMap<GlyphId, Vec<(u32, NotNan<f32>)>>,
@@ -149,6 +152,7 @@ impl Sdf2Table {
             // blob_arcs: Default::default(),
             glyph_id_map: XHashMap::default(),
             glyphs: SlotMap::default(),
+            outline_info: XHashMap::default(),
             // base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
             index_packer: TextPacker::new(width, height),
             data_packer: TextPacker::new(width, height),
@@ -306,6 +310,36 @@ impl Sdf2Table {
                     glyph: Glyph::default(),
                 }));
 
+                if self.glyphs[id.0].font_face_index.is_null() {
+                    for (index, font_id) in font_info.font_ids.iter().enumerate() {
+                        if let Some(font_face) = self.fonts.get_mut(font_id.0) {
+                            let r = font_face.to_outline3(char);
+                            
+                            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+                                &mut r.bbox.clone(),
+                                FONT_SIZE,
+                                PXRANGE,
+                                r.units_per_em,
+                                PXRANGE,
+                                false,
+                            );
+                            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+
+                            let glyph = Glyph {
+                                ox: plane_bounds.mins.x,
+                                oy: plane_bounds.mins.y,
+                                x: offset.x as f32 + atlas_bounds.mins.x,
+                                y: offset.y as f32 + atlas_bounds.mins.y,
+                                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
+                                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                                advance: r.advance as f32,
+                            };
+                            self.glyphs[id.0].glyph = glyph;
+                            self.outline_info.insert((font_id.0, char), r);
+                        };
+                    }
+                }
+
                 // 放入等待队列, 并统计等待队列的总宽度
                 // font.await_info.size.width += size.width.ceil() as usize;
                 // font.await_info.size.height += size.height.ceil() as usize;
@@ -323,6 +357,31 @@ impl Sdf2Table {
 
     // 字形id
     pub fn add_font_shadow(&mut self, id: GlyphId, radius: u32, weight: NotNan<f32>) {
+        // let id =  self.glyph_id_map.get((font_info.font_family_id, char));
+        let c = &self.glyphs[id.0];
+        let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+
+        let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+            &mut outline_info.bbox.clone(),
+            FONT_SIZE,
+            radius,
+            outline_info.units_per_em,
+            radius,
+            false,
+        );
+        let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+
+        let glyph = Glyph {
+            ox: plane_bounds.mins.x,
+            oy: plane_bounds.mins.y,
+            x: offset.x as f32 + atlas_bounds.mins.x,
+            y: offset.y as f32 + atlas_bounds.mins.y,
+            width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
+            height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+            advance: outline_info.advance as f32,
+        };
+        self.font_shadow_info.insert((id, radius, weight), glyph);
+
         if let Some(v) = self.font_shadow.get_mut(&id) {
             v.push((radius, weight));
         } else {
@@ -332,6 +391,30 @@ impl Sdf2Table {
 
     // 字形id
     pub fn add_font_outer_glow(&mut self, id: GlyphId, range: u32) {
+        let c = &self.glyphs[id.0];
+        let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+
+        let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+            &mut outline_info.bbox.clone(),
+            FONT_SIZE,
+            range,
+            outline_info.units_per_em,
+            range,
+            false,
+        );
+        let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+
+        let glyph = Glyph {
+            ox: plane_bounds.mins.x,
+            oy: plane_bounds.mins.y,
+            x: offset.x as f32 + atlas_bounds.mins.x,
+            y: offset.y as f32 + atlas_bounds.mins.y,
+            width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
+            height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+            advance: outline_info.advance as f32,
+        };
+        self.font_outer_glow_info.insert((id, range), glyph);
+
         if let Some(v) = self.font_outer_glow.get_mut(&id) {
             v.push(range);
         } else {
@@ -429,8 +512,8 @@ impl Sdf2Table {
                     SvgTexInfo {
                         x: index_position.x as f32 + info[4],
                         y: index_position.y as f32 + info[5],
-                        width: info[8] as usize,
-                        height: info[8] as usize,
+                        width: (info[6] - info[4]) as usize,
+                        height: (info[7] - info[5]) as usize,
                     },
                 );
             }
@@ -459,8 +542,8 @@ impl Sdf2Table {
                     SvgTexInfo {
                         x: index_position.x as f32 + info[4],
                         y: index_position.y as f32 + info[5],
-                        width: info[8] as usize,
-                        height: info[8] as usize,
+                        width: (info[6] - info[4]) as usize,
+                        height: (info[7] - info[5]) as usize,
                     },
                 );
             }
@@ -693,6 +776,7 @@ impl Sdf2Table {
                     let font_face_id = font_info.font_ids[g.font_face_index];
                     if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                         let glyph_index = font_face.glyph_index(g.char);
+
                         // log::error!("{} glyph_index: {}", g.char, glyph_index);
                         // 字体中不存在字符
                         if glyph_index == 0 {
@@ -702,8 +786,9 @@ impl Sdf2Table {
                         let is_outer_glow = self.font_outer_glow.remove(&glyph_id);
                         let shadow = self.font_shadow.remove(&glyph_id);
                         // #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
+                        // ;
                         outline_infos.push((
-                            font_face.to_outline3(g.char),
+                            self.outline_info.remove(&(font_face_id.0, g.char)).unwrap(),
                             font_face_id.0,
                             glyph_id,
                             is_outer_glow,
@@ -720,7 +805,8 @@ impl Sdf2Table {
             }
         }
 
-        result.0.lock().unwrap().font_result = Vec::with_capacity(await_count.load(Ordering::Relaxed));
+        result.0.lock().unwrap().font_result =
+            Vec::with_capacity(await_count.load(Ordering::Relaxed));
 
         let mut ll = 0;
 
@@ -819,7 +905,7 @@ impl Sdf2Table {
                                         result_arcs.clone(),
                                         FONT_SIZE,
                                         shadow_range + 2,
-                                        true,
+                                        false,
                                     );
                                     let sdf_tex = gaussian_blur(
                                         sdf_tex,
@@ -886,67 +972,68 @@ impl Sdf2Table {
             unsafe { transmute(&mut self.glyphs) };
 
         // let mut lock = result.lock().unwrap();
-        let r =  result;
+        let r = result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
             glyph_id,
             SdfInfo2 {
-                mut tex_info,
+                tex_info,
                 sdf_tex,
                 tex_size,
             },
             sdf_type,
         )) = r.pop()
         {
+            // let r =
             // 索引纹理更新
-            let tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
-            let sdf_position = match tex_position {
-                Some(r) => r,
-                None => panic!("aaaa================"),
-            };
+            // let tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
+            // let sdf_position = match tex_position {
+            //     Some(r) => r,
+            //     None => panic!("aaaa================"),
+            // };
             let sdf_img = FontImage {
                 width: tex_size as usize,
                 height: tex_size as usize,
                 buffer: sdf_tex,
             };
-
+            let glyph = &glyphs[glyph_id].glyph;
             // let index_offset_x = sdf_position.x as f32 + tex_info.atlas_min_x ;
             // let index_offset_y = sdf_position.y as f32 + tex_info.atlas_min_y;
-            tex_info.sdf_offset_x = sdf_position.x as usize;
-            tex_info.sdf_offset_x = sdf_position.y as usize;
+            // tex_info.sdf_offset_x = glyph.x -  tex_info.atlas_min_x ;
+            // tex_info.sdf_offset_x = glyph.y -  tex_info.atlas_min_y ;;
             let sdf_block = Block {
-                x: sdf_position.x as f32,
-                y: sdf_position.y as f32,
+                x: glyph.x - tex_info.atlas_min_x as f32,
+                y: glyph.y - tex_info.atlas_min_y as f32,
                 width: tex_size as f32,
                 height: tex_size as f32,
             };
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(sdf_block, sdf_img);
 
-            let advance = glyphs[glyph_id].glyph.advance;
-            let glyph = Glyph {
-                ox: tex_info.plane_min_x,
-                oy: tex_info.plane_min_y,
-                x: tex_info.sdf_offset_x as f32 + tex_info.atlas_min_x,
-                y: tex_info.sdf_offset_y as f32 + tex_info.atlas_min_y,
-                width: tex_info.atlas_max_x - tex_info.atlas_min_x,
-                height: tex_info.atlas_max_y - tex_info.atlas_min_y,
-                advance,
-            };
-            match sdf_type {
-                SdfType::Normal => {
-                    glyphs[glyph_id].glyph = glyph;
-                }
-                SdfType::Shadow(range, weight) => {
-                    self.font_shadow_info
-                        .insert((GlyphId(glyph_id), range, weight), glyph);
-                }
-                SdfType::OuterGlow(range) => {
-                    self.font_outer_glow_info
-                        .insert((GlyphId(glyph_id), range), glyph);
-                }
-            }
+            // let advance = glyphs[glyph_id].glyph.advance;
+            // let glyph = Glyph {
+            //     ox: tex_info.plane_min_x,
+            //     oy: tex_info.plane_min_y,
+            //     x: tex_info.sdf_offset_x as f32 + tex_info.atlas_min_x,
+            //     y: tex_info.sdf_offset_y as f32 + tex_info.atlas_min_y,
+            //     width: tex_info.atlas_max_x - tex_info.atlas_min_x,
+            //     height: tex_info.atlas_max_y - tex_info.atlas_min_y,
+            //     advance,
+            // };
+            // match sdf_type {
+            //     SdfType::Normal => {
+            //         // glyphs[glyph_id].glyph = glyph;
+            //     }
+            //     SdfType::Shadow(range, weight) => {
+            //         // self.font_shadow_info
+            //         //     .insert((GlyphId(glyph_id), range, weight), glyph);
+            //     }
+            //     SdfType::OuterGlow(range) => {
+            //         // self.font_outer_glow_info
+            //         //     .insert((GlyphId(glyph_id), range), glyph);
+            //     }
+            // }
 
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
@@ -1010,7 +1097,7 @@ impl Sdf2Table {
     pub fn update_box_shadow<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result:&mut  Vec<(u64, BoxInfo, Vec<u8>)>,
+        result: &mut Vec<(u64, BoxInfo, Vec<u8>)>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
@@ -1024,22 +1111,7 @@ impl Sdf2Table {
         while let Some((hash, box_info, tex)) = r.pop() {
             // 索引纹理更新
             let mut is_have = false;
-            let index_position = if let Some(info) = self.shapes_shadow_tex_info.get(&(hash, box_info.radius)) {
-                is_have = true;
-                Point::new(
-                    info.x - box_info.atlas_bounds.mins.x,
-                    info.y - box_info.atlas_bounds.mins.y,
-                )
-            } else {
-                let index_tex_position =
-                    index_packer.alloc(box_info.p_w as usize, box_info.p_h as usize);
-                let p = match index_tex_position {
-                    Some(r) => r,
-                    None => panic!("aaaa================"),
-                };
-                Point::new(p.x as f32, p.y as f32)
-            };
-
+            let index_position = self.shapes_shadow_tex_info.get(&(hash, box_info.radius)).unwrap();
             let index_img = FontImage {
                 width: box_info.p_w as usize,
                 height: box_info.p_h as usize,
@@ -1055,16 +1127,16 @@ impl Sdf2Table {
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(index_block, index_img);
 
-            if !is_have {
-                let mut tex_info = SvgTexInfo::default();
+            // if !is_have {
+            //     let mut tex_info = SvgTexInfo::default();
 
-                tex_info.x = index_position.x + box_info.atlas_bounds.mins.x;
-                tex_info.y = index_position.y + box_info.atlas_bounds.mins.y;
-                tex_info.width = box_info.p_w as usize;
-                tex_info.height = box_info.p_h as usize;
+            //     tex_info.x = index_position.x + box_info.atlas_bounds.mins.x;
+            //     tex_info.y = index_position.y + box_info.atlas_bounds.mins.y;
+            //     tex_info.width = box_info.p_w as usize;
+            //     tex_info.height = box_info.p_h as usize;
 
-                self.shapes_shadow_tex_info.insert((hash, 0), tex_info);
-            }
+            //     self.shapes_shadow_tex_info.insert((hash, 0), tex_info);
+            // }
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
     }
@@ -1160,7 +1232,7 @@ impl Sdf2Table {
     pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-         result: &mut Vec<(u64, SdfInfo2, SdfType)>,
+        result: &mut Vec<(u64, SdfInfo2, SdfType)>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
@@ -1168,7 +1240,7 @@ impl Sdf2Table {
         //     unsafe { transmute(&mut self.shapes_tex_info) };
 
         // let mut lock = result.lock().unwrap();
-        let r =  result;
+        let r = result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
@@ -1182,16 +1254,8 @@ impl Sdf2Table {
         )) = r.pop()
         {
             let mut is_have = false;
-            let index_position = if let Some(p) = self.shapes_tex_info.get(&hash) {
-                is_have = true;
-                Point::new(p.x - tex_info.atlas_min_x, p.y - tex_info.atlas_min_y)
-            } else {
-                let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
-                match index_tex_position {
-                    Some(r) => Point::new(r.x as f32, r.y as f32),
-                    None => panic!("aaaa================"),
-                }
-            };
+            let index_position = self.shapes_tex_info.get(&hash).unwrap();
+           
 
             // // 索引纹理更新
             // let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
@@ -1215,22 +1279,22 @@ impl Sdf2Table {
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(index_block, index_img);
 
-            if !is_have {
-                let info = SvgTexInfo {
-                    x: index_position.x + tex_info.atlas_min_x,
-                    y: index_position.y + tex_info.atlas_min_y,
-                    width: tex_size,
-                    height: tex_size,
-                };
+            // if !is_have {
+            //     let info = SvgTexInfo {
+            //         x: index_position.x + tex_info.atlas_min_x,
+            //         y: index_position.y + tex_info.atlas_min_y,
+            //         width: (tex_info.atlas_max_x - tex_info.atlas_min_x) as usize,
+            //         height: (tex_info.atlas_max_y - tex_info.atlas_min_y) as usize,
+            //     };
 
-                match svg_type {
-                    SdfType::Normal => self.shapes_tex_info.insert(hash, info),
-                    SdfType::Shadow(r, _) => self.shapes_shadow_tex_info.insert((hash, r), info),
-                    SdfType::OuterGlow(r) => {
-                        self.shapes_outer_glow_tex_info.insert((hash, r), info)
-                    }
-                };
-            }
+            //     match svg_type {
+            //         SdfType::Normal => self.shapes_tex_info.insert(hash, info),
+            //         SdfType::Shadow(r, _) => self.shapes_shadow_tex_info.insert((hash, r), info),
+            //         SdfType::OuterGlow(r) => {
+            //             self.shapes_outer_glow_tex_info.insert((hash, r), info)
+            //         }
+            //     };
+            // }
 
             // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
