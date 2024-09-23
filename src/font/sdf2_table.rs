@@ -863,13 +863,13 @@ impl Sdf2Table {
         &mut self,
         update: F,
         // mut updtae_shadow: F1,
-        font_result: Arc<ShareMutex<(usize, Vec<(DefaultKey, SdfInfo2, SdfType)>)>>,
-        box_result: Arc<ShareMutex<(usize, Vec<(u64, (BoxInfo, Vec<u8>))>)>>,
-        svg_result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2, SdfType)>)>>,
-        // font_result: Arc<ShareMutex<(usize, Vec<(DefaultKey, SdfInfo2, SdfType)>)>>,
-        // svg_result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2, SdfType)>)>>,
-        // box_result: Arc<ShareMutex<(usize, Vec<(u64, Vec<u8>)>)>>,
+        result: SdfResult,
     ) {
+        let SdfResult {
+            font_result,
+            svg_result,
+            box_result,
+        } = result;
         self.update_font(update.clone(), font_result);
         self.update_box_shadow(update.clone(), box_result);
         self.update_svg(update, svg_result);
@@ -879,7 +879,7 @@ impl Sdf2Table {
         &mut self,
         update: F,
         // mut updtae_shadow: F1,
-        result: Arc<ShareMutex<(usize, Vec<(DefaultKey, SdfInfo2, SdfType)>)>>,
+        result: Arc<ShareMutex<Vec<(DefaultKey, SdfInfo2, SdfType)>>>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
@@ -887,7 +887,7 @@ impl Sdf2Table {
             unsafe { transmute(&mut self.glyphs) };
 
         let mut lock = result.lock().unwrap();
-        let r = &mut lock.1;
+        let r = &mut lock;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
@@ -1011,7 +1011,7 @@ impl Sdf2Table {
     pub fn update_box_shadow<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result: Arc<ShareMutex<(usize, Vec<(u64, (BoxInfo, Vec<u8>))>)>>,
+        result: Arc<ShareMutex<Vec<(u64, BoxInfo, Vec<u8>)>>>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
@@ -1019,10 +1019,10 @@ impl Sdf2Table {
         //     unsafe { transmute(&mut self.shapes_tex_info) };
 
         let mut lock = result.lock().unwrap();
-        let r = &mut lock.1;
+        let r = &mut lock;
         log::debug!("sdf2 load2========={:?}", r.len());
 
-        while let Some((hash, (box_info, tex))) = r.pop() {
+        while let Some((hash, box_info, tex)) = r.pop() {
             // 索引纹理更新
             let mut is_have = false;
             let index_position = if let Some(info) = self.shapes_shadow_tex_info.get(&(hash, 0)) {
@@ -1161,21 +1161,21 @@ impl Sdf2Table {
     pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2, SdfType)>)>>,
+        result: Arc<ShareMutex<Vec<(u64, SdfInfo2, SdfType)>>>,
     ) {
         let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
-        let shapes: &'static mut XHashMap<u64, TexInfo2> =
-            unsafe { transmute(&mut self.shapes_tex_info) };
+        // let shapes: &'static mut XHashMap<u64, TexInfo2> =
+        //     unsafe { transmute(&mut self.shapes_tex_info) };
 
         let mut lock = result.lock().unwrap();
-        let r = &mut lock.1;
+        let r = &mut lock;
         log::debug!("sdf2 load2========={:?}", r.len());
 
         while let Some((
             hash,
             SdfInfo2 {
-                mut tex_info,
+                tex_info,
                 sdf_tex,
                 tex_size,
             },
@@ -1226,7 +1226,7 @@ impl Sdf2Table {
 
                 match svg_type {
                     SdfType::Normal => self.shapes_tex_info.insert(hash, info),
-                    SdfType::Shadow(r, w) => self.shapes_shadow_tex_info.insert((hash, r), info),
+                    SdfType::Shadow(r, _) => self.shapes_shadow_tex_info.insert((hash, r), info),
                     SdfType::OuterGlow(r) => {
                         self.shapes_outer_glow_tex_info.insert((hash, r), info)
                     }
