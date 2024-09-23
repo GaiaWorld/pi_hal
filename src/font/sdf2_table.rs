@@ -358,67 +358,72 @@ impl Sdf2Table {
     // 字形id
     pub fn add_font_shadow(&mut self, id: GlyphId, radius: u32, weight: NotNan<f32>) {
         // let id =  self.glyph_id_map.get((font_info.font_family_id, char));
-        let c = &self.glyphs[id.0];
-        let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+        if let Entry::Vacant(vacant_entry) = self.font_shadow_info.entry((id, radius, weight)) {
+            let c = &self.glyphs[id.0];
+            let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
 
-        let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
-            &mut outline_info.bbox.clone(),
-            FONT_SIZE,
-            radius,
-            outline_info.units_per_em,
-            radius,
-            false,
-        );
-        let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+                &mut outline_info.bbox.clone(),
+                FONT_SIZE,
+                radius,
+                outline_info.units_per_em,
+                radius,
+                false,
+            );
+            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
-        let glyph = Glyph {
-            ox: plane_bounds.mins.x,
-            oy: plane_bounds.mins.y,
-            x: offset.x as f32 + atlas_bounds.mins.x,
-            y: offset.y as f32 + atlas_bounds.mins.y,
-            width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
-            height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
-            advance: outline_info.advance as f32,
-        };
-        self.font_shadow_info.insert((id, radius, weight), glyph);
+            let glyph = Glyph {
+                ox: plane_bounds.mins.x,
+                oy: plane_bounds.mins.y,
+                x: offset.x as f32 + atlas_bounds.mins.x,
+                y: offset.y as f32 + atlas_bounds.mins.y,
+                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
+                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                advance: outline_info.advance as f32,
+            };
+            vacant_entry.insert(glyph);
 
-        if let Some(v) = self.font_shadow.get_mut(&id) {
-            v.push((radius, weight));
-        } else {
-            self.font_shadow.insert(id, vec![(radius, weight)]);
+            if let Some(v) = self.font_shadow.get_mut(&id) {
+                v.push((radius, weight));
+            } else {
+                self.font_shadow.insert(id, vec![(radius, weight)]);
+            }
         }
+        
     }
 
     // 字形id
     pub fn add_font_outer_glow(&mut self, id: GlyphId, range: u32) {
-        let c = &self.glyphs[id.0];
-        let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+        if let Entry::Vacant(vacant_entry) = self.font_outer_glow_info.entry((id, range)) {
+            let c = &self.glyphs[id.0];
+            let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
 
-        let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
-            &mut outline_info.bbox.clone(),
-            FONT_SIZE,
-            range,
-            outline_info.units_per_em,
-            range,
-            false,
-        );
-        let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+                &mut outline_info.bbox.clone(),
+                FONT_SIZE,
+                range,
+                outline_info.units_per_em,
+                range,
+                false,
+            );
+            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
-        let glyph = Glyph {
-            ox: plane_bounds.mins.x,
-            oy: plane_bounds.mins.y,
-            x: offset.x as f32 + atlas_bounds.mins.x,
-            y: offset.y as f32 + atlas_bounds.mins.y,
-            width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
-            height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
-            advance: outline_info.advance as f32,
-        };
-        self.font_outer_glow_info.insert((id, range), glyph);
+            let glyph = Glyph {
+                ox: plane_bounds.mins.x,
+                oy: plane_bounds.mins.y,
+                x: offset.x as f32 + atlas_bounds.mins.x,
+                y: offset.y as f32 + atlas_bounds.mins.y,
+                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
+                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                advance: outline_info.advance as f32,
+            };
+            vacant_entry.insert(glyph);
 
-        if let Some(v) = self.font_outer_glow.get_mut(&id) {
-            v.push(range);
-        } else {
-            self.font_outer_glow.insert(id, vec![range]);
+            if let Some(v) = self.font_outer_glow.get_mut(&id) {
+                v.push(range);
+            } else {
+                self.font_outer_glow.insert(id, vec![range]);
+            }
         }
     }
 
