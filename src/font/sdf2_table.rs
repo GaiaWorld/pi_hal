@@ -661,19 +661,18 @@ impl Sdf2Table {
         }
     }
 
-    pub fn add_box(&mut self, bbox: Aabb, tex_size: usize, pxrang: f32) -> u64 {
-        let mut hasher = pi_hash::DefaultHasher::default();
-        hasher.write(bytemuck::cast_slice(&[
-            bbox.mins.x,
-            bbox.mins.y,
-            bbox.maxs.x,
-            bbox.maxs.y,
-            tex_size as f32,
-            pxrang,
-        ]));
-        let hash = hasher.finish();
+    pub fn add_box(&mut self, hash: u64,bbox: Aabb, tex_size: usize, pxrang: f32) {
+        // let mut hasher = pi_hash::DefaultHasher::default();
+        // hasher.write(bytemuck::cast_slice(&[
+        //     bbox.mins.x,
+        //     bbox.mins.y,
+        //     bbox.maxs.x,
+        //     bbox.maxs.y,
+        //     tex_size as f32,
+        //     pxrang,
+        // ]));
+        // let hash = hasher.finish();
         self.bboxs.insert(hash, (bbox, tex_size, pxrang));
-        hash
     }
 
     pub fn has_box(&mut self, hash: u64) -> bool {
