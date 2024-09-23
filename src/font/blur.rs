@@ -62,14 +62,13 @@ pub fn blur_box(info: BoxInfo) -> Vec<u8> {
         ..
     } = info;
     let mut pixmap = vec![0; (p_w * p_h) as usize];
-
+    let start = Point::new(0.5, 0.5);
     for i in 0..p_w as usize {
         for j in 0..p_h as usize {
-            let pos = Point::new(
-                start.x + i as f32 * px_dsitance,
-                start.y + j as f32 * px_dsitance,
-            );
+            let pos: parry2d::na::OPoint<f32, parry2d::na::Const<2>> =
+                Point::new(start.x + i as f32, start.y + j as f32);
             let a = get_shadow_alpha(pos, &bbox.mins, &bbox.maxs, sigma);
+
             pixmap[j * p_w as usize + i as usize] = (a * 255.0) as u8;
         }
     }
@@ -86,7 +85,7 @@ pub struct BoxInfo {
     sigma: f32,
     pub atlas_bounds: Aabb,
     bbox: Aabb,
-    pub radius: u32
+    pub radius: u32,
 }
 
 pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
@@ -98,8 +97,8 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     // let px_num = (sigma + sigma * 5.0).ceil();
     let px_num = radius as f32;
     let px_num2 = px_num + 0.5;
-    let sigma = px_num / 6.0;
-    let dsitance = px_dsitance * (px_num);
+    let sigma = px_num / 3.0;
+    let dsitance = px_dsitance * px_num;
     println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance, bbox));
     let p_w = (b_w / px_dsitance).ceil() + px_num2 * 2.0;
     let p_h = (b_h / px_dsitance).ceil() + px_num2 * 2.0;
@@ -114,17 +113,17 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     };
 
     let atlas_bounds = Aabb::new(Point::new(px_num2, px_num2), maxs);
-
-    BoxInfo {
+    let info = BoxInfo {
         p_w,
         p_h,
         start,
         px_dsitance,
         sigma,
         atlas_bounds,
-        bbox,
-        radius
-    }
+        bbox: atlas_bounds,
+        radius,
+    };
+    info
 }
 
 pub fn gaussian_blur(
