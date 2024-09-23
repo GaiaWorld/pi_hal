@@ -67,7 +67,7 @@ pub struct Font {
 	pub stroke: NotNan<f32>,
 	pub font_type: FontType,
 	pub is_outer_glow: Option<u32>,
-	pub shadow: Option<( NotNan<f32>,  NotNan<f32>)>
+	pub shadow: Option<(NotNan<f32>,  NotNan<f32>)>
 }
 
 impl Font {
@@ -278,11 +278,6 @@ impl FontMgr {
 	pub fn glyph_id(&mut self, f: FontId, char: char) -> Option<GlyphId> {
 		let font_info = &mut self.sheet.fonts[f.0];
 		self.table.glyph_id(f, char, font_info, self.font_type)
-	}
-	
-	pub fn shadow(&mut self, box_: Aabb, radius: f32, size: usize) -> Option<GlyphId> {
-
-		todo!()
 	}
 
 	/// 测量宽度

@@ -1,6 +1,6 @@
 use parry2d::bounding_volume::Aabb;
 // use parry2d::math::Point;
-type Point =parry2d::math::Point<f32>;
+type Point = parry2d::math::Point<f32>;
 type Vector2 = parry2d::math::Vector<f32>;
 
 fn erf(mut x: f32) -> f32 {
@@ -51,23 +51,20 @@ fn get_shadow_alpha(pos: Point, pt_min: &Point, pt_max: &Point, sigma: f32) -> f
     return color_from_rect(d_min, d_max, sigma);
 }
 
-pub fn blur_box(bbox: Aabb, pxrange: f32, txe_size: usize) -> (Vec<u8>, u32, u32, Aabb) {
-    let b_w = bbox.maxs.x - bbox.mins.x;
-    let b_h = bbox.maxs.y - bbox.mins.y;
-    let px_dsitance = b_h.max(b_w) / txe_size as f32;
+pub fn blur_box(info: BoxInfo) -> Vec<u8> {
+    let BoxInfo {
+        p_w,
+        p_h,
+        start,
+        px_dsitance,
+        sigma,
+        bbox,
+        ..
+    } = info;
+    let mut pixmap = vec![0; (info.p_w * info.p_h) as usize];
 
-    // let px_num = (sigma + sigma * 5.0).ceil();
-    let px_num = (pxrange * 0.5).ceil();
-    let sigma = px_num / 6.0;
-    let dsitance = px_dsitance * px_num;
-    println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance));
-    let p_w = (b_w / px_dsitance).ceil() + px_num * 2.0;
-    let p_h = (b_h / px_dsitance).ceil() + px_num * 2.0;
-    let mut pixmap = vec![0; (p_w * p_h) as usize];
-    println!("{:?}", (p_w, p_h));
-    let start = Point::new(bbox.mins.x - dsitance, bbox.mins.y - dsitance);
-    for i in 0..p_w as usize {
-        for j in 0..p_h as usize {
+    for i in 0..info.p_w as usize {
+        for j in 0..info.p_h as usize {
             let pos = Point::new(
                 start.x + i as f32 * px_dsitance,
                 start.y + j as f32 * px_dsitance,
@@ -76,13 +73,65 @@ pub fn blur_box(bbox: Aabb, pxrange: f32, txe_size: usize) -> (Vec<u8>, u32, u32
             pixmap[j * p_w as usize + i as usize] = (a * 255.0) as u8;
         }
     }
-    let atlas_bounds = Aabb::new(Point::new(px_num, px_num), Point::new(p_w - px_num, p_h - px_num));
-    println!("atlasBounds: {:?}", atlas_bounds);
-    (pixmap, p_w as u32, p_h as u32, atlas_bounds)
+
+    pixmap
 }
 
+#[derive(Debug, Clone)]
+pub struct BoxInfo {
+    pub p_w: f32,
+    pub p_h: f32,
+    start: Point,
+    px_dsitance: f32,
+    sigma: f32,
+    pub atlas_bounds: Aabb,
+    bbox: Aabb,
+}
 
-pub fn gaussian_blur(sdf_tex: Vec<u8>, width: u32, height: u32, radius: u32, weight: f32) -> Vec<u8> {
+pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
+    let b_w = bbox.maxs.x - bbox.mins.x;
+    let b_h = bbox.maxs.y - bbox.mins.y;
+
+    let px_dsitance = b_h.max(b_w) / (txe_size - 1) as f32; // 两边pxrange + 0.5， 中间应该减一
+
+    // let px_num = (sigma + sigma * 5.0).ceil();
+    let px_num = radius as f32;
+    let px_num2 = px_num + 0.5;
+    let sigma = px_num / 6.0;
+    let dsitance = px_dsitance * (px_num);
+    println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance, bbox));
+    let p_w = (b_w / px_dsitance).ceil() + px_num2 * 2.0;
+    let p_h = (b_h / px_dsitance).ceil() + px_num2 * 2.0;
+    let mut pixmap = vec![0; (p_w * p_h) as usize];
+    println!("{:?}", (p_w, p_h));
+    let start = Point::new(bbox.mins.x - dsitance, bbox.mins.y - dsitance);
+
+    let maxs = if b_h > b_w {
+        Point::new(b_w / px_dsitance + px_num2, p_h - px_num2)
+    } else {
+        Point::new(p_w - px_num2, b_h / px_dsitance + px_num2)
+    };
+
+    let atlas_bounds = Aabb::new(Point::new(px_num2, px_num2), maxs);
+
+    BoxInfo {
+        p_w,
+        p_h,
+        start,
+        px_dsitance,
+        sigma,
+        atlas_bounds,
+        bbox
+    }
+}
+
+pub fn gaussian_blur(
+    sdf_tex: Vec<u8>,
+    width: u32,
+    height: u32,
+    radius: u32,
+    weight: f32,
+) -> Vec<u8> {
     // let (width, height) = img.dimensions();
     let mut output = Vec::with_capacity(sdf_tex.len());
 
@@ -99,8 +148,10 @@ pub fn gaussian_blur(sdf_tex: Vec<u8>, width: u32, height: u32, radius: u32, wei
 
             for ky in 0..kernel_size {
                 for kx in 0..kernel_size {
-                    let px = (x as i32 + kx as i32 - radius as i32).clamp(0, width as i32 - 1) as u32;
-                    let py = (y as i32 + ky as i32 - radius as i32).clamp(0, height as i32 - 1) as u32;
+                    let px =
+                        (x as i32 + kx as i32 - radius as i32).clamp(0, width as i32 - 1) as u32;
+                    let py =
+                        (y as i32 + ky as i32 - radius as i32).clamp(0, height as i32 - 1) as u32;
 
                     let sdf = sdf_tex[(px + py * width) as usize] as f32 / 255.0;
                     let fill_sd_px = sdf - weight;
@@ -118,7 +169,7 @@ pub fn gaussian_blur(sdf_tex: Vec<u8>, width: u32, height: u32, radius: u32, wei
 
             let pixel = (a / weight_sum * 255.0) as u8;
 
-            output.push( pixel);
+            output.push(pixel);
         }
     }
 
@@ -135,7 +186,8 @@ fn create_gaussian_kernel(radius: u32) -> Vec<Vec<f32>> {
         for x in 0..size {
             let dx = x as f32 - radius as f32;
             let dy = y as f32 - radius as f32;
-            let value = (-((dx * dx + dy * dy) / (2.0 * sigma * sigma))).exp() / (2.0 * std::f32::consts::PI * sigma * sigma);
+            let value = (-((dx * dx + dy * dy) / (2.0 * sigma * sigma))).exp()
+                / (2.0 * std::f32::consts::PI * sigma * sigma);
             kernel[y as usize][x as usize] = value;
             sum += value;
         }
