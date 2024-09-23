@@ -314,7 +314,7 @@ impl Sdf2Table {
                     for (index, font_id) in font_info.font_ids.iter().enumerate() {
                         if let Some(font_face) = self.fonts.get_mut(font_id.0) {
                             let r = font_face.to_outline3(char);
-                            
+
                             let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
                                 &mut r.bbox.clone(),
                                 FONT_SIZE,
@@ -423,7 +423,6 @@ impl Sdf2Table {
     }
 
     pub fn add_box_shadow(&mut self, hash: u64, bbox: Aabb, tex_size: usize, radius: u32) -> u64 {
-
         let info = compute_box_layout(bbox, tex_size, radius);
         self.bboxs.insert(hash, info.clone());
 
@@ -437,8 +436,8 @@ impl Sdf2Table {
             SvgTexInfo {
                 x: index_position.x as f32 + info.atlas_bounds.mins.x,
                 y: index_position.y as f32 + info.atlas_bounds.mins.y,
-                width: info.p_w as usize,
-                height: info.p_h as usize,
+                width: (info.atlas_bounds.maxs.x - info.atlas_bounds.mins.x) as usize,
+                height: (info.atlas_bounds.maxs.y - info.atlas_bounds.mins.y) as usize,
             },
         );
         hash
@@ -1100,8 +1099,11 @@ impl Sdf2Table {
 
         while let Some((hash, box_info, tex)) = r.pop() {
             // 索引纹理更新
-            let mut is_have = false;
-            let index_position = self.shapes_shadow_tex_info.get(&(hash, box_info.radius)).unwrap();
+            // let mut is_have = false;
+            let index_position = self
+                .shapes_shadow_tex_info
+                .get(&(hash, box_info.radius))
+                .unwrap();
             let index_img = FontImage {
                 width: box_info.p_w as usize,
                 height: box_info.p_h as usize,
@@ -1109,8 +1111,8 @@ impl Sdf2Table {
             };
 
             let index_block = Block {
-                x: index_position.x as f32,
-                y: index_position.y as f32,
+                x: index_position.x - box_info.atlas_bounds.mins.x as f32,
+                y: index_position.y - box_info.atlas_bounds.mins.y as f32,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
@@ -1245,7 +1247,6 @@ impl Sdf2Table {
         {
             let mut is_have = false;
             let index_position = self.shapes_tex_info.get(&hash).unwrap();
-           
 
             // // 索引纹理更新
             // let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
@@ -1261,8 +1262,8 @@ impl Sdf2Table {
             // tex_info.sdf_offset_x = index_position.x;
             // tex_info.sdf_offset_x = index_position.y;
             let index_block = Block {
-                x: index_position.x as f32,
-                y: index_position.y as f32,
+                x: index_position.x - tex_info.atlas_min_x as f32,
+                y: index_position.y - tex_info.atlas_min_y as f32,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
