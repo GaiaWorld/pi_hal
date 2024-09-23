@@ -422,17 +422,7 @@ impl Sdf2Table {
         }
     }
 
-    pub fn add_box_shadow(&mut self, bbox: Aabb, tex_size: usize, radius: u32) -> u64 {
-        let mut hasher = pi_hash::DefaultHasher::default();
-        hasher.write(bytemuck::cast_slice(&[
-            bbox.mins.x,
-            bbox.mins.y,
-            bbox.maxs.x,
-            bbox.maxs.y,
-            tex_size as f32,
-            radius as f32,
-        ]));
-        let hash = hasher.finish();
+    pub fn add_box_shadow(&mut self, hash: u64, bbox: Aabb, tex_size: usize, radius: u32) -> u64 {
 
         let info = compute_box_layout(bbox, tex_size, radius);
         self.bboxs.insert(hash, info.clone());
