@@ -489,8 +489,8 @@ impl Sdf2Table {
             SvgTexInfo {
                 x: index_position.x as f32 + info2[4],
                 y: index_position.y as f32 + info2[5],
-                width: info2[8] as usize,
-                height: info2[8] as usize,
+                width: (info[6] - info[4]) as usize,
+                height: (info[7] - info[5]) as usize,
             },
         );
         self.shapes.insert(hash, (info, tex_size, pxrang, cut_off));
