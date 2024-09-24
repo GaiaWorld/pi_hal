@@ -326,8 +326,10 @@ impl Sdf2Table {
                             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
                             let glyph = Glyph {
-                                ox: plane_bounds.mins.x,
-                                oy: plane_bounds.mins.y,
+                                plane_min_x: plane_bounds.mins.x,
+                                plane_min_y: plane_bounds.mins.y,
+                                plane_max_x: plane_bounds.maxs.x,
+                                plane_max_y: plane_bounds.maxs.y,
                                 x: offset.x as f32 + atlas_bounds.mins.x,
                                 y: offset.y as f32 + atlas_bounds.mins.y,
                                 width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
@@ -373,8 +375,10 @@ impl Sdf2Table {
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
             let glyph = Glyph {
-                ox: plane_bounds.mins.x,
-                oy: plane_bounds.mins.y,
+                plane_min_x: plane_bounds.mins.x,
+                    plane_min_y: plane_bounds.mins.y,
+                    plane_max_x: plane_bounds.maxs.x,
+                    plane_max_y: plane_bounds.maxs.y,
                 x: offset.x as f32 + atlas_bounds.mins.x,
                 y: offset.y as f32 + atlas_bounds.mins.y,
                 width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
@@ -409,8 +413,10 @@ impl Sdf2Table {
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
             let glyph = Glyph {
-                ox: plane_bounds.mins.x,
-                oy: plane_bounds.mins.y,
+                plane_min_x: plane_bounds.mins.x,
+                plane_min_y: plane_bounds.mins.y,
+                plane_max_x: plane_bounds.maxs.x,
+                plane_max_y: plane_bounds.maxs.y,
                 x: offset.x as f32 + atlas_bounds.mins.x,
                 y: offset.y as f32 + atlas_bounds.mins.y,
                 width: atlas_bounds.maxs.x - atlas_bounds.mins.x,

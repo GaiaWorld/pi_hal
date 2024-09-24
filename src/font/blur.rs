@@ -97,7 +97,7 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     // let px_num = (sigma + sigma * 5.0).ceil();
     let px_num = radius as f32;
     let px_num2 = px_num + 0.5;
-    let sigma = px_num / 3.0;
+    let sigma = px_num / 2.0;
     let dsitance = px_dsitance * px_num;
     println!("{:?}", (b_w, b_h, px_dsitance, px_num, dsitance, bbox));
     let p_w = (b_w / px_dsitance).ceil() + px_num2 * 2.0;

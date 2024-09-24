@@ -48,8 +48,10 @@ impl BitmapTable{
 					glyph: Glyph {
 						x: 0.0, 
 						y: 0.0, 
-						ox: 0.0,
-						oy: 0.0,
+						plane_min_x: 0.0,
+						plane_min_y: 0.0,
+						plane_max_x: 0.0,
+						plane_max_y: 0.0,
 						width: 0.0, 
 						height: 0.0,
 						advance: 0.0,},

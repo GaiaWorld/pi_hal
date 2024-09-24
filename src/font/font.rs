@@ -551,8 +551,10 @@ pub struct AwaitInfo {
 
 #[derive(Debug, Default, Clone)]
 pub struct Glyph {
-	pub ox: f32, // 相对与整个字体高度(acender-decender)的百分比
-	pub oy: f32, // 相对与整个字体高度的百分比
+	pub plane_min_x: f32, // 相对与整个字体高度(acender-decender)的百分比
+	pub plane_min_y: f32, // 相对与整个字体高度的百分比
+	pub plane_max_x: f32, // 相对与整个字体高度(acender-decender)的百分比
+	pub plane_max_y: f32, // 相对与整个字体高度的百分比
 	pub x: f32, // 纹理区域左上角在整张纹理左上角的x偏移（单位： 像素）
     pub y: f32, // 纹理区域左上角在整张纹理左上角的y偏移（单位： 像素）
 	pub width: f32, // 纹理区域的宽度（单位： 像素）
