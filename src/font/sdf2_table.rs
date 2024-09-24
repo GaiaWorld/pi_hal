@@ -1122,8 +1122,8 @@ impl Sdf2Table {
             };
 
             let index_block = Block {
-                x: index_position.x - box_info.atlas_bounds.mins.x as f32 + 1.0,
-                y: index_position.y - box_info.atlas_bounds.mins.y as f32 + 1.0,
+                x: index_position.x - box_info.atlas_bounds.mins.x as f32,
+                y: index_position.y - box_info.atlas_bounds.mins.y as f32,
                 width: index_img.width as f32,
                 height: index_img.height as f32,
             };
