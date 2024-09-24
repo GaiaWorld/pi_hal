@@ -1299,7 +1299,7 @@ impl Sdf2Table {
 
 use crate::font_brush::ArcEndpoint;
 pub fn create_svg_info(binding_box: Aabb, arc_endpoints: Vec<ArcEndpoint>) -> SvgInfo {
-    SvgInfo::new(SdfAabb(binding_box), arc_endpoints)
+    SvgInfo::new_from_arc_endpoint(SdfAabb(binding_box), arc_endpoints)
 }
 
 #[derive(Debug)]
