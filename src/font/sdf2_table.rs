@@ -2,6 +2,7 @@ use crate::font_brush::CellInfo;
 use crate::font_brush::SdfAabb;
 use crate::font_brush::SdfArc;
 use ordered_float::NotNan;
+use parry2d::math::Vector;
 use parry2d::{bounding_volume::Aabb, math::Point};
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
@@ -402,7 +403,7 @@ impl Sdf2Table {
             let c = &self.glyphs[id.0];
             let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
 
-            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
+            let (_, atlas_bounds, _, tex_size) = compute_layout(
                 &mut outline_info.bbox.clone(),
                 FONT_SIZE,
                 range,
@@ -410,6 +411,7 @@ impl Sdf2Table {
                 range,
                 false,
             );
+            let plane_bounds = outline_info.bbox.scaled(&Vector::new(outline_info.units_per_em as f32, outline_info.units_per_em as f32));
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
             let glyph = Glyph {
