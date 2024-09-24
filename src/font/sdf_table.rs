@@ -128,8 +128,10 @@ impl SdfTable {
 					glyph: Glyph {
 						x: 0.0, 
 						y: 0.0, 
-						ox: 0.0,
-						oy: 0.0,
+						plane_min_x: 0.0,
+						plane_min_y: 0.0,
+						plane_max_x: 0.0,
+						plane_max_y: 0.0,
 						width: 0.0, 
 						height: 0.0,
 						advance: 0.0,},
@@ -170,8 +172,8 @@ impl SdfTable {
 
 			let glyph = &mut self.glyphs[id.0];
 			glyph.font_face_index = index;
-			glyph.glyph.ox = glyph_info.ox as f32 / OFFSET_RANGE;
-			glyph.glyph.oy = glyph_info.oy as f32 / OFFSET_RANGE;
+			glyph.glyph.plane_min_x = glyph_info.ox as f32 / OFFSET_RANGE;
+			glyph.glyph.plane_min_y = glyph_info.oy as f32 / OFFSET_RANGE;
 			glyph.glyph.advance = glyph_info.advance as f32;
 			max_height = glyph_info.height as f32;
 			// sdf的文字纹理， 不需要加上描边宽度， 也不需要间隔, 直接从配置中取到
