@@ -377,9 +377,9 @@ impl Sdf2Table {
 
             let glyph = Glyph {
                 plane_min_x: plane_bounds.mins.x,
-                    plane_min_y: plane_bounds.mins.y,
-                    plane_max_x: plane_bounds.maxs.x,
-                    plane_max_y: plane_bounds.maxs.y,
+                plane_min_y: plane_bounds.mins.y,
+                plane_max_x: plane_bounds.maxs.x,
+                plane_max_y: plane_bounds.maxs.y,
                 x: offset.x as f32 + atlas_bounds.mins.x,
                 y: offset.y as f32 + atlas_bounds.mins.y,
                 width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
@@ -394,7 +394,6 @@ impl Sdf2Table {
                 self.font_shadow.insert(id, vec![(radius, weight)]);
             }
         }
-        
     }
 
     // 字形id
@@ -411,7 +410,10 @@ impl Sdf2Table {
                 range,
                 false,
             );
-            let plane_bounds = outline_info.bbox.scaled(&Vector::new(outline_info.units_per_em as f32, outline_info.units_per_em as f32));
+            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+                outline_info.units_per_em as f32,
+                outline_info.units_per_em as f32,
+            ));
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
             let glyph = Glyph {
@@ -968,10 +970,9 @@ impl Sdf2Table {
         // mut updtae_shadow: F1,
         result: &mut Vec<(DefaultKey, SdfInfo2, SdfType)>,
     ) {
-        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
+        // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
-        let glyphs: &'static mut SlotMap<DefaultKey, GlyphIdDesc> =
-            unsafe { transmute(&mut self.glyphs) };
+        let glyphs = &mut self.glyphs;
 
         // let mut lock = result.lock().unwrap();
         let r = result;
@@ -999,7 +1000,11 @@ impl Sdf2Table {
                 height: tex_size as usize,
                 buffer: sdf_tex,
             };
-            let glyph = &glyphs[glyph_id].glyph;
+            let glyph = match sdf_type {
+                SdfType::Normal => &glyphs[glyph_id].glyph,
+                SdfType::Shadow(radius, weight) => self.font_shadow_info.get(&(GlyphId(glyph_id), radius, weight)).unwrap(),
+                SdfType::OuterGlow(radius) => self.font_outer_glow_info.get(&(GlyphId(glyph_id), radius)).unwrap(),
+            };
             // let index_offset_x = sdf_position.x as f32 + tex_info.atlas_min_x ;
             // let index_offset_y = sdf_position.y as f32 + tex_info.atlas_min_y;
             // tex_info.sdf_offset_x = glyph.x -  tex_info.atlas_min_x ;
