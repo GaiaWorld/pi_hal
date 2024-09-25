@@ -373,9 +373,9 @@ impl Sdf2Table {
             let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
                 &mut outline_info.bbox.clone(),
                 FONT_SIZE,
-                radius,
+                PXRANGE,
                 outline_info.units_per_em,
-                radius,
+                (radius as f32 + f32::from(weight) * 3.0) as u32 + 2,
                 false,
             );
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
@@ -899,10 +899,10 @@ impl Sdf2Table {
                                         FONT_SIZE,
                                         v,
                                         true,
-                                        PXRANGE
+                                        v
                                     );
                                     lock.push((
-                                        glyph_visitor.2 .0,
+                                        glyph_visitor.2.0,
                                         outer_glow_sdf,
                                         SdfType::OuterGlow(v),
                                     ));
@@ -930,7 +930,7 @@ impl Sdf2Table {
                                         f32::from(weight),
                                     );
                                     lock.push((
-                                        glyph_visitor.2 .0,
+                                        glyph_visitor.2.0,
                                         SdfInfo2 {
                                             tex_info,
                                             sdf_tex,
