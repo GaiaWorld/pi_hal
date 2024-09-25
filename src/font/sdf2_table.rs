@@ -314,17 +314,22 @@ impl Sdf2Table {
                 if self.glyphs[id.0].font_face_index.is_null() {
                     for (index, font_id) in font_info.font_ids.iter().enumerate() {
                         if let Some(font_face) = self.fonts.get_mut(font_id.0) {
-                            let r = font_face.to_outline3(char);
+                            let outline_info = font_face.to_outline3(char);
 
                             let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
-                                &mut r.bbox.clone(),
+                                &mut outline_info.bbox.clone(),
                                 FONT_SIZE,
                                 PXRANGE,
-                                r.units_per_em,
+                                outline_info.units_per_em,
                                 PXRANGE,
                                 false,
                             );
                             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+
+                            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+                                1.0 / outline_info.units_per_em as f32,
+                                1.0 / outline_info.units_per_em as f32,
+                            ));
 
                             let glyph = Glyph {
                                 plane_min_x: plane_bounds.mins.x,
@@ -335,10 +340,10 @@ impl Sdf2Table {
                                 y: offset.y as f32 + atlas_bounds.mins.y,
                                 width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
                                 height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
-                                advance: r.advance as f32,
+                                advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
-                            self.outline_info.insert((font_id.0, char), r);
+                            self.outline_info.insert((font_id.0, char), outline_info);
                         };
                     }
                 }
@@ -374,7 +379,10 @@ impl Sdf2Table {
                 false,
             );
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
-
+            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+                1.0 / outline_info.units_per_em as f32,
+                1.0 / outline_info.units_per_em as f32,
+            ));
             let glyph = Glyph {
                 plane_min_x: plane_bounds.mins.x,
                 plane_min_y: plane_bounds.mins.y,
@@ -411,8 +419,8 @@ impl Sdf2Table {
                 false,
             );
             let plane_bounds = outline_info.bbox.scaled(&Vector::new(
-                outline_info.units_per_em as f32,
-                outline_info.units_per_em as f32,
+                1.0 / outline_info.units_per_em as f32,
+                1.0 / outline_info.units_per_em as f32,
             ));
             let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
 
