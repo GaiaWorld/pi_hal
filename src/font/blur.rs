@@ -125,7 +125,7 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     };
     info
 }
-
+const SCALE: f32 = 10.0;
 pub fn gaussian_blur(
     sdf_tex: Vec<u8>,
     width: u32,
@@ -135,7 +135,7 @@ pub fn gaussian_blur(
 ) -> Vec<u8> {
     // let (width, height) = img.dimensions();
     let mut output = Vec::with_capacity(sdf_tex.len());
-
+    let weight = -weight / SCALE;
     let kernel = create_gaussian_kernel(radius);
     let kernel_size = kernel.len() as u32;
 
@@ -155,7 +155,7 @@ pub fn gaussian_blur(
                         (y as i32 + ky as i32 - radius as i32).clamp(0, height as i32 - 1) as u32;
 
                     let sdf = sdf_tex[(px + py * width) as usize] as f32 / 255.0;
-                    let fill_sd_px = sdf - weight;
+                    let fill_sd_px = sdf - (0.5 + weight);
                     let pixel = (fill_sd_px + 0.5).clamp(0.0, 1.0);
 
                     let weight = kernel[ky as usize][kx as usize];

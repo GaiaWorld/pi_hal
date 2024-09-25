@@ -66,7 +66,7 @@ static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 
 pub static FONT_SIZE: usize = 32;
-pub static PXRANGE: u32 = 10;
+pub static PXRANGE: u32 = 10 / 2;
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -888,6 +888,7 @@ impl Sdf2Table {
                                 FONT_SIZE,
                                 PXRANGE,
                                 false,
+                                PXRANGE
                             );
                             lock.push((glyph_visitor.2 .0, sdf, SdfType::Normal));
 
@@ -898,6 +899,7 @@ impl Sdf2Table {
                                         FONT_SIZE,
                                         v,
                                         true,
+                                        PXRANGE
                                     );
                                     lock.push((
                                         glyph_visitor.2 .0,
@@ -916,8 +918,9 @@ impl Sdf2Table {
                                     } = glyph_visitor.0.compute_sdf_tex(
                                         result_arcs.clone(),
                                         FONT_SIZE,
-                                        shadow_range + 2,
+                                        PXRANGE,
                                         false,
+                                        (shadow_range as f32 + f32::from(weight) * 3.0) as u32 + 2
                                     );
                                     let sdf_tex = gaussian_blur(
                                         sdf_tex,
