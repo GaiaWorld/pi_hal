@@ -4,23 +4,23 @@ use nalgebra::Point2;
 use pi_hash::XHashMap;
 
 #[derive(Debug)]
-pub struct TextPacker{
-	pub width: usize,
-	pub height: usize,
-	pub last_v: usize,
+pub struct TextPacker {
+    pub width: usize,
+    pub height: usize,
+    pub last_v: usize,
     line_map: XHashMap<usize, (Point2<usize>, usize)>,
 }
 
 impl TextPacker {
-	pub fn clear(&mut self) {
-		self.line_map.clear();
-		self.last_v = 0;
-	}
+    pub fn clear(&mut self) {
+        self.line_map.clear();
+        self.last_v = 0;
+    }
 
     pub fn new(width: usize, height: usize) -> Self {
         TextPacker {
             width,
-			height,
+            height,
             line_map: XHashMap::default(),
             last_v: 0,
         }
@@ -28,7 +28,11 @@ impl TextPacker {
     // 分配行
     pub fn alloc_line(&mut self, mut line_height: usize) -> TexLine {
         //每行可容纳四种字号，提高利用率
-        line_height = line_height / 4 * 4 + 4;
+        line_height = if line_height <= 42 {
+            42
+        } else {
+            (line_height - 42) / 32 * 32 + 32 + 42
+        };
 
         let v = self.last_v;
         let mut is_new = false;
@@ -39,27 +43,27 @@ impl TextPacker {
         // 如果是新分配的行， self.last_v + line_height
         if is_new {
             // self.last_v += line_height as f32 + 1.0; // 行与行之间间隔两个个像素，以免过界采样，出现细线；如果纹理不够时，先清空纹理为蓝色，重新更新纹理，则不会出现这个问题，因为文字周围本身就有空白
-			self.last_v += line_height;
+            self.last_v += line_height;
         }
         TexLine {
             line: line,
             last_v: &mut self.last_v,
             tex_width: self.width,
-            line_height: line_height
+            line_height: line_height,
         }
     }
 
-	pub fn alloc(&mut self, width: usize, height: usize) -> Option<Point2<usize>> {
-		let mut line = self.alloc_line(height);
-		let p = line.alloc(width);
+    pub fn alloc(&mut self, width: usize, height: usize) -> Option<Point2<usize>> {
+        let mut line = self.alloc_line(height);
+        let p = line.alloc(width);
 
-		// 超出最大纹理范围，需要清空所有文字，重新布局
-		if *(line.last_v) > self.height {
-			return None; // 0表示异常情况，不能计算字形
-		} else {
-			Some(p)
-		}
-	}
+        // 超出最大纹理范围，需要清空所有文字，重新布局
+        if *(line.last_v) > self.height {
+            return None; // 0表示异常情况，不能计算字形
+        } else {
+            Some(p)
+        }
+    }
 
     // fn update(&self, tex: Res<TextureRes>, u: f32, v: f32, w: f32, h: f32, data: &Object) {
     //     if v + h > self.last_v {
@@ -88,7 +92,7 @@ impl<'a> TexLine<'a> {
             self.line.0.x += char_width;
             self.line.1 += 1;
             r
-        }else{
+        } else {
             self.line.0.x = char_width;
             self.line.0.y = *self.last_v;
             self.line.1 = 1;

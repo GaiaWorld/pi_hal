@@ -898,7 +898,7 @@ impl Sdf2Table {
                                         result_arcs.clone(),
                                         FONT_SIZE,
                                         v,
-                                        true,
+                                        false,
                                         v
                                     );
                                     lock.push((
