@@ -311,9 +311,11 @@ impl Sdf2Table {
                     glyph: Glyph::default(),
                 }));
 
+                println!("glyph_id===============: {:?}", (font_id, char));
+
                 if self.glyphs[id.0].font_face_index.is_null() {
-                    for (index, font_id) in font_info.font_ids.iter().enumerate() {
-                        if let Some(font_face) = self.fonts.get_mut(font_id.0) {
+                    for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
+                        if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                             let outline_info = font_face.to_outline3(char);
 
                             let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
@@ -343,7 +345,7 @@ impl Sdf2Table {
                                 advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
-                            self.outline_info.insert((font_id.0, char), outline_info);
+                            self.outline_info.insert((font_face_id.0, char), outline_info);
                         };
                     }
                 }
@@ -364,11 +366,13 @@ impl Sdf2Table {
     }
 
     // 字形id
-    pub fn add_font_shadow(&mut self, id: GlyphId, radius: u32, weight: NotNan<f32>) {
+    pub fn add_font_shadow(&mut self, id: GlyphId, font_info: &FontInfo, radius: u32, weight: NotNan<f32>) {
         // let id =  self.glyph_id_map.get((font_info.font_family_id, char));
         if let Entry::Vacant(vacant_entry) = self.font_shadow_info.entry((id, radius, weight)) {
             let c = &self.glyphs[id.0];
-            let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+            let font_face_id = font_info.font_ids[c.font_face_index];
+            println!("add_font_shadow ============={:?}", (c.font_id.0, c.char));
+            let outline_info = self.outline_info.get(&(font_face_id.0, c.char)).unwrap();
 
             let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
                 &mut outline_info.bbox.clone(),
@@ -405,10 +409,12 @@ impl Sdf2Table {
     }
 
     // 字形id
-    pub fn add_font_outer_glow(&mut self, id: GlyphId, range: u32) {
+    pub fn add_font_outer_glow(&mut self, id: GlyphId, font_info: &FontInfo, range: u32) {
         if let Entry::Vacant(vacant_entry) = self.font_outer_glow_info.entry((id, range)) {
+            println!("add_font_outer_glow======={:?}", range);
             let c = &self.glyphs[id.0];
-            let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
+            let font_face_id = font_info.font_ids[c.font_face_index];
+            let outline_info = self.outline_info.get(&(font_face_id.0, c.char)).unwrap();
 
             let (_, atlas_bounds, _, tex_size) = compute_layout(
                 &mut outline_info.bbox.clone(),

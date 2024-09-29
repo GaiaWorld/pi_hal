@@ -57,12 +57,13 @@ impl FontTable {
 		} else if font_type == FontType::Sdf2 {
 			self.sdf2_table.width(f, font, char).0
 		} else {
-			let base_w = self.bitmap_table.brush.base_width( font, char);
-			let ratio = font.font.font_size as f32 / BASE_FONT_SIZE as f32;
-			let r = ratio * base_w.0 + *font.font.stroke;
+			// let base_w = self.bitmap_table.brush.base_width( font, char);
+			// let ratio = font.font.font_size as f32 / BASE_FONT_SIZE as f32;
+			// let r = ratio * base_w.0 + *font.font.stroke;
 
-			log::warn!("width======={:?}, {:?}, {:?}, {:?}", base_w, char, r, font);
-			r
+			// log::warn!("width======={:?}, {:?}, {:?}, {:?}", base_w, char, r, font);
+			// r
+			todo!()
 		}
 	}
 
