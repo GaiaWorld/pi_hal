@@ -1,6 +1,5 @@
 use crate::font_brush::CellInfo;
-use crate::font_brush::SdfAabb;
-use crate::font_brush::SdfArc;
+use crate::font_brush::LayoutInfo;
 use ordered_float::NotNan;
 use parry2d::math::Vector;
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -8,8 +7,8 @@ use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-use pi_sdf::utils::compute_layout;
-use pi_sdf::utils::OutlineInfo;
+// use pi_sdf::utils::compute_layout;
+use crate::font_brush::OutlineInfo;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
@@ -36,7 +35,7 @@ pub struct SdfResultInner {
 pub struct SdfResult(pub Arc<ShareMutex<SdfResultInner>>);
 // use pi_sdf::utils::GlyphInfo;
 // use pi_sdf::shape::ArcOutline;
-use crate::font_brush::TexInfo2;
+// use crate::font_brush::TexInfo2;
 use pi_share::{Share, ShareMutex};
 use pi_slotmap::{DefaultKey, SecondaryMap, SlotMap};
 
@@ -54,10 +53,10 @@ use super::{
 
 pub use crate::font_brush::TexInfo;
 use crate::{
-    font_brush::{load_font_sdf, FontFace, SdfInfo2},
+    font_brush::{FontFace, SdfInfo2},
     runtime::MULTI_MEDIA_RUNTIME,
     stroe::{self, init_local_store},
-    svg::{compute_shape_sdf_tex, SvgInfo},
+    svg::SvgInfo,
 };
 use pi_async_rt::prelude::AsyncRuntime;
 // use pi_async_rt::prelude::serial::AsyncRuntime;
@@ -217,7 +216,13 @@ impl Sdf2Table {
 
         let max_box = face.max_box();
         self.fonts.insert(font_id.0, face);
-        self.max_boxs.insert(font_id.0, max_box.0);
+        self.max_boxs.insert(
+            font_id.0,
+            Aabb::new(
+                Point::new(max_box[0], max_box[1]),
+                Point::new(max_box[2], max_box[3]),
+            ),
+        );
     }
 
     // 文字高度
@@ -314,19 +319,22 @@ impl Sdf2Table {
                 if self.glyphs[id.0].font_face_index.is_null() {
                     for (index, font_id) in font_info.font_ids.iter().enumerate() {
                         if let Some(font_face) = self.fonts.get_mut(font_id.0) {
-                            let outline_info = font_face.to_outline3(char);
+                            let outline_info = font_face.to_outline(char);
 
-                            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
-                                &mut outline_info.bbox.clone(),
-                                FONT_SIZE,
-                                PXRANGE,
-                                outline_info.units_per_em,
-                                PXRANGE,
-                                false,
+                            let LayoutInfo {
+                                atlas_bounds,
+                                tex_size,
+                                ..
+                            } = outline_info.compute_layout(FONT_SIZE, PXRANGE, PXRANGE);
+                            let offset = self
+                                .index_packer
+                                .alloc(tex_size as usize, tex_size as usize)
+                                .unwrap();
+                            let bbox = Aabb::new(
+                                Point::new(outline_info.bbox[0], outline_info.bbox[1]),
+                                Point::new(outline_info.bbox[2], outline_info.bbox[3]),
                             );
-                            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
-
-                            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+                            let plane_bounds = bbox.scaled(&Vector::new(
                                 1.0 / outline_info.units_per_em as f32,
                                 1.0 / outline_info.units_per_em as f32,
                             ));
@@ -336,10 +344,10 @@ impl Sdf2Table {
                                 plane_min_y: plane_bounds.mins.y,
                                 plane_max_x: plane_bounds.maxs.x,
                                 plane_max_y: plane_bounds.maxs.y,
-                                x: offset.x as f32 + atlas_bounds.mins.x,
-                                y: offset.y as f32 + atlas_bounds.mins.y,
-                                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
-                                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                                x: offset.x as f32 + atlas_bounds[0],
+                                y: offset.y as f32 + atlas_bounds[1],
+                                width: atlas_bounds[2] - atlas_bounds[0],
+                                height: atlas_bounds[3] - atlas_bounds[0],
                                 advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
@@ -370,16 +378,24 @@ impl Sdf2Table {
             let c = &self.glyphs[id.0];
             let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
 
-            let (plane_bounds, atlas_bounds, _, tex_size) = compute_layout(
-                &mut outline_info.bbox.clone(),
+            let LayoutInfo {
+                atlas_bounds,
+                tex_size,
+                ..
+            } = outline_info.compute_layout(
                 FONT_SIZE,
                 PXRANGE,
-                outline_info.units_per_em,
                 (radius as f32 + f32::from(weight) * 3.0) as u32 + 2,
-                false,
             );
-            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
-            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+            let offset = self
+                .index_packer
+                .alloc(tex_size as usize, tex_size as usize)
+                .unwrap();
+            let bbox = Aabb::new(
+                Point::new(outline_info.bbox[0], outline_info.bbox[1]),
+                Point::new(outline_info.bbox[2], outline_info.bbox[3]),
+            );
+            let plane_bounds = bbox.scaled(&Vector::new(
                 1.0 / outline_info.units_per_em as f32,
                 1.0 / outline_info.units_per_em as f32,
             ));
@@ -388,10 +404,10 @@ impl Sdf2Table {
                 plane_min_y: plane_bounds.mins.y,
                 plane_max_x: plane_bounds.maxs.x,
                 plane_max_y: plane_bounds.maxs.y,
-                x: offset.x as f32 + atlas_bounds.mins.x,
-                y: offset.y as f32 + atlas_bounds.mins.y,
-                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
-                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                x: offset.x as f32 + atlas_bounds[0],
+                y: offset.y as f32 + atlas_bounds[1],
+                width: atlas_bounds[2] - atlas_bounds[0],
+                height: atlas_bounds[3] - atlas_bounds[0],
                 advance: outline_info.advance as f32,
             };
             vacant_entry.insert(glyph);
@@ -410,29 +426,33 @@ impl Sdf2Table {
             let c = &self.glyphs[id.0];
             let outline_info = self.outline_info.get(&(c.font_id.0, c.char)).unwrap();
 
-            let (_, atlas_bounds, _, tex_size) = compute_layout(
-                &mut outline_info.bbox.clone(),
-                FONT_SIZE,
-                range,
-                outline_info.units_per_em,
-                range,
-                false,
+            let LayoutInfo {
+                atlas_bounds,
+                tex_size,
+                ..
+            } = outline_info.compute_layout(FONT_SIZE, range, range);
+            let bbox = Aabb::new(
+                Point::new(outline_info.bbox[0], outline_info.bbox[1]),
+                Point::new(outline_info.bbox[2], outline_info.bbox[3]),
             );
-            let plane_bounds = outline_info.bbox.scaled(&Vector::new(
+            let plane_bounds = bbox.scaled(&Vector::new(
                 1.0 / outline_info.units_per_em as f32,
                 1.0 / outline_info.units_per_em as f32,
             ));
-            let offset = self.index_packer.alloc(tex_size, tex_size).unwrap();
+            let offset = self
+                .index_packer
+                .alloc(tex_size as usize, tex_size as usize)
+                .unwrap();
 
             let glyph = Glyph {
                 plane_min_x: plane_bounds.mins.x,
                 plane_min_y: plane_bounds.mins.y,
                 plane_max_x: plane_bounds.maxs.x,
                 plane_max_y: plane_bounds.maxs.y,
-                x: offset.x as f32 + atlas_bounds.mins.x,
-                y: offset.y as f32 + atlas_bounds.mins.y,
-                width: atlas_bounds.maxs.x - atlas_bounds.mins.x,
-                height: atlas_bounds.maxs.y - atlas_bounds.mins.x,
+                x: offset.x as f32 + atlas_bounds[0],
+                y: offset.y as f32 + atlas_bounds[1],
+                width: atlas_bounds[2] - atlas_bounds[0],
+                height: atlas_bounds[3] - atlas_bounds[0],
                 advance: outline_info.advance as f32,
             };
             vacant_entry.insert(glyph);
@@ -493,16 +513,16 @@ impl Sdf2Table {
         // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         let index_position = self
             .index_packer
-            .alloc(info2[8] as usize, info2[8] as usize)
+            .alloc(info2.tex_size as usize, info2.tex_size as usize)
             .unwrap();
 
         self.shapes_tex_info.insert(
             hash,
             SvgTexInfo {
-                x: index_position.x as f32 + info2[4],
-                y: index_position.y as f32 + info2[5],
-                width: (info2[6] - info2[4]) as usize,
-                height: (info2[7] - info2[5]) as usize,
+                x: index_position.x as f32 + info2.atlas_bounds[0],
+                y: index_position.y as f32 + info2.atlas_bounds[1],
+                width: (info2.atlas_bounds[2] - info2.atlas_bounds[0]) as usize,
+                height: (info2.atlas_bounds[3] - info2.atlas_bounds[1]) as usize,
             },
         );
         self.shapes.insert(hash, (info, tex_size, pxrang, cut_off));
@@ -517,15 +537,15 @@ impl Sdf2Table {
                 let info = info.compute_layout(*tex_size, radius, radius);
                 let index_position = self
                     .index_packer
-                    .alloc(info[8] as usize, info[8] as usize)
+                    .alloc(info.tex_size as usize, info.tex_size as usize)
                     .unwrap();
                 self.shapes_shadow_tex_info.insert(
                     (id, radius),
                     SvgTexInfo {
-                        x: index_position.x as f32 + info[4],
-                        y: index_position.y as f32 + info[5],
-                        width: (info[6] - info[4]) as usize,
-                        height: (info[7] - info[5]) as usize,
+                        x: index_position.x as f32 + info.atlas_bounds[0],
+                        y: index_position.y as f32 + info.atlas_bounds[1],
+                        width: (info.atlas_bounds[2] - info.atlas_bounds[0]) as usize,
+                        height: (info.atlas_bounds[3] - info.atlas_bounds[1]) as usize,
                     },
                 );
             }
@@ -547,15 +567,15 @@ impl Sdf2Table {
                 let info = info.compute_layout(*tex_size, radius, radius);
                 let index_position = self
                     .index_packer
-                    .alloc(info[8] as usize, info[8] as usize)
+                    .alloc(info.tex_size as usize, info.tex_size as usize)
                     .unwrap();
                 self.shapes_outer_glow_tex_info.insert(
                     (id, radius),
                     SvgTexInfo {
-                        x: index_position.x as f32 + info[4],
-                        y: index_position.y as f32 + info[5],
-                        width: (info[6] - info[4]) as usize,
-                        height: (info[7] - info[5]) as usize,
+                        x: index_position.x as f32 + info.atlas_bounds[0],
+                        y: index_position.y as f32 + info.atlas_bounds[1],
+                        width: (info.atlas_bounds[2] - info.atlas_bounds[0]) as usize,
+                        height: (info.atlas_bounds[3] - info.atlas_bounds[1]) as usize,
                     },
                 );
             }
@@ -849,8 +869,17 @@ impl Sdf2Table {
                             key.hash(&mut hasher);
                             let key = hasher.finish().to_string();
                             let result_arcs = if let Some(buffer) = stroe::get(key.clone()).await {
-                                let arcs: CellInfo = bincode::deserialize(&buffer[..]).unwrap();
-                                arcs
+                                #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                {
+                                    let arcs: CellInfo = bitcode::deserialize(&buffer[..]).unwrap();
+                                    arcs
+                                }
+
+                                #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                {
+                                    buffer
+                                }
+                               
                             // log::trace!("store is have: {}, sdf_tex: {}, atlas_bounds: {:?}", temp_key, sdf_tex.len(), atlas_bounds);
                             // (char, plane_bounds, atlas_bounds, advance, sdf_tex, tex_size)
                             } else {
@@ -862,24 +891,16 @@ impl Sdf2Table {
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
                                     let arcs = glyph_visitor.0.compute_near_arcs(1.0);
-                                    let buffer = bincode::serialize(&arcs).unwrap();
+                                    let buffer = bitcode::serialize(&arcs).unwrap();
                                     stroe::write(key, buffer).await;
                                     arcs
                                 }
 
                                 #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
                                 {
-                                    let buffer = FontFace::compute_sdf_tex(
-                                        glyph_visitor.0,
-                                        FONT_SIZE,
-                                        PXRANGE,
-                                    )
-                                    .await;
-
-                                    let sdf: SdfInfo2 = bincode::deserialize(&buffer).unwrap();
-
-                                    stroe::write(key, buffer).await;
-                                    sdf
+                                    let buffer = glyph_visitor.0.compute_near_arcs(1.0).await;
+                                    stroe::write(key, buffer.clone()).await;
+                                    buffer
                                 }
                             };
                             let lock = &mut result.0.lock().unwrap().font_result;
@@ -888,7 +909,7 @@ impl Sdf2Table {
                                 FONT_SIZE,
                                 PXRANGE,
                                 false,
-                                PXRANGE
+                                PXRANGE,
                             );
                             lock.push((glyph_visitor.2 .0, sdf, SdfType::Normal));
 
@@ -899,10 +920,10 @@ impl Sdf2Table {
                                         FONT_SIZE,
                                         v,
                                         false,
-                                        v
+                                        v,
                                     );
                                     lock.push((
-                                        glyph_visitor.2.0,
+                                        glyph_visitor.2 .0,
                                         outer_glow_sdf,
                                         SdfType::OuterGlow(v),
                                     ));
@@ -920,7 +941,7 @@ impl Sdf2Table {
                                         FONT_SIZE,
                                         PXRANGE,
                                         false,
-                                        (shadow_range as f32 + f32::from(weight) * 3.0) as u32 + 2
+                                        (shadow_range as f32 + f32::from(weight) * 3.0) as u32 + 2,
                                     );
                                     let sdf_tex = gaussian_blur(
                                         sdf_tex,
@@ -930,7 +951,7 @@ impl Sdf2Table {
                                         f32::from(weight),
                                     );
                                     lock.push((
-                                        glyph_visitor.2.0,
+                                        glyph_visitor.2 .0,
                                         SdfInfo2 {
                                             tex_info,
                                             sdf_tex,
@@ -1013,8 +1034,14 @@ impl Sdf2Table {
             };
             let glyph = match sdf_type {
                 SdfType::Normal => &glyphs[glyph_id].glyph,
-                SdfType::Shadow(radius, weight) => self.font_shadow_info.get(&(GlyphId(glyph_id), radius, weight)).unwrap(),
-                SdfType::OuterGlow(radius) => self.font_outer_glow_info.get(&(GlyphId(glyph_id), radius)).unwrap(),
+                SdfType::Shadow(radius, weight) => self
+                    .font_shadow_info
+                    .get(&(GlyphId(glyph_id), radius, weight))
+                    .unwrap(),
+                SdfType::OuterGlow(radius) => self
+                    .font_outer_glow_info
+                    .get(&(GlyphId(glyph_id), radius))
+                    .unwrap(),
             };
             // let index_offset_x = sdf_position.x as f32 + tex_info.atlas_min_x ;
             // let index_offset_y = sdf_position.y as f32 + tex_info.atlas_min_y;
@@ -1199,12 +1226,17 @@ impl Sdf2Table {
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
                     let lock = &mut result1.0.lock().unwrap().svg_result;
-                    let sdfinfo =
-                        compute_shape_sdf_tex(info.clone(), size, pxrange, false, cur_off);
+                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                    let sdfinfo = info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0);
+                    #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                    let sdfinfo = info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0).await;
                     lock.push((hash, sdfinfo.clone(), SdfType::Normal));
                     if let Some(outer_glow) = outer_glow {
                         for v in outer_glow {
-                            let sdfinfo = compute_shape_sdf_tex(info.clone(), size, v, true, v / 2);
+                            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                            let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0);
+                            #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                            let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0).await;
                             lock.push((hash, sdfinfo, SdfType::OuterGlow(v)));
                         }
                     }
@@ -1321,10 +1353,10 @@ impl Sdf2Table {
     }
 }
 
-use crate::font_brush::ArcEndpoint;
-pub fn create_svg_info(binding_box: Aabb, arc_endpoints: Vec<ArcEndpoint>) -> SvgInfo {
-    SvgInfo::new_from_arc_endpoint(SdfAabb(binding_box), arc_endpoints)
-}
+// use crate::font_brush::ArcEndpoint;
+// pub fn create_svg_info(binding_box: Aabb, arc_endpoints: Vec<ArcEndpoint>) -> SvgInfo {
+//     SvgInfo::new_from_arc_endpoint(SdfAabb(binding_box), arc_endpoints)
+// }
 
 #[derive(Debug)]
 pub struct AwaitDraw {

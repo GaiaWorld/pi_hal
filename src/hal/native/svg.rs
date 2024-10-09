@@ -1,2 +1,2 @@
 pub use pi_sdf::shape::*;
-pub use pi_sdf::font::SdfInfo2;
+pub use pi_sdf::utils::SdfInfo2;

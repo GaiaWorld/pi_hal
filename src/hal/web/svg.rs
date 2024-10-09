@@ -1,16 +1,18 @@
+use super::{
+    computeLayout, computeSvgSdfTexOfWasm, font_brush::{ArcEndpoint, LayoutInfo, SdfInfo, SdfInfo2}
+};
 use crate::{
-    computeArcsSdfTex, computeShapeSdfTex, computerSvgSdf, createCircle, createEllipse, createPath,
+     createCircle, createEllipse, createPath,
     createPolygon, createPolyline, createRect, createSegment, createSvgInfo, free, getSvgInfo,
 };
 use parry2d::bounding_volume::Aabb;
-use super::font_brush::{ArcEndpoint, SdfInfo, SdfInfo2};
 use wasm_bindgen::JsValue;
 
 pub struct SvgInfo(JsValue);
 
 impl SvgInfo {
     pub fn new(binding_box: Aabb, arc_endpoints: Vec<ArcEndpoint>) -> Self {
-        let arc_endpoints = bincode::serialize(&arc_endpoints).unwrap();
+        let arc_endpoints = bitcode::serialize(&arc_endpoints).unwrap();
         let binding_box = vec![
             binding_box.mins.x,
             binding_box.mins.y,
@@ -18,6 +20,36 @@ impl SvgInfo {
             binding_box.maxs.x,
         ];
         Self(createSvgInfo(binding_box, arc_endpoints))
+    }
+
+    pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
+        let v = computeLayout(self.0.clone(), tex_size, pxrange, cur_off);
+        let plane_bounds = js_sys::Reflect::get(&v, &"plane_bounds".to_string().into()).unwrap();
+        let atlas_bounds = js_sys::Reflect::get(&v, &"atlas_bounds".to_string().into()).unwrap();
+        let extents = js_sys::Reflect::get(&v, &"extents".to_string().into()).unwrap();
+        let distance = js_sys::Reflect::get(&v, &"distance".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&v, &"tex_size".to_string().into()).unwrap();
+
+        LayoutInfo {
+            plane_bounds: js_sys::Float32Array::from(plane_bounds).to_vec(),
+            atlas_bounds: js_sys::Float32Array::from(atlas_bounds).to_vec(),
+            extents: js_sys::Float32Array::from(extents).to_vec(),
+            distance: distance.as_f64().unwrap() as f32,
+            tex_size: tex_size.as_f64().unwrap() as u32,
+        }
+    }
+
+    pub async fn compute_sdf_tex(
+        &self,
+        tex_size: usize,
+        pxrange: u32,
+        is_outer_glow: bool,
+        cur_off: u32,
+        scale: f32,
+    )-> SdfInfo2{
+        let js_value = computeSvgSdfTexOfWasm(self.0.clone(), tex_size, pxrange, is_outer_glow, cur_off).await;
+        let bytes = js_sys::Uint8Array::from(js_value).to_vec();
+        bitcode::deserialize(&bytes).unwrap()
     }
 }
 
@@ -153,21 +185,27 @@ impl Drop for Path {
     }
 }
 
-pub fn computer_svg_sdf(info: SvgInfo) -> SdfInfo {
-    let v = computerSvgSdf(info.0.clone());
-    let buf = js_sys::Uint8Array::from(v).to_vec();
+// pub fn computer_svg_sdf(info: SvgInfo) -> SdfInfo {
+//     let v = computerSvgSdf(info.0.clone());
+//     let buf = js_sys::Uint8Array::from(v).to_vec();
 
-    let sdf_info: SdfInfo = bincode::deserialize(&buf[..]).unwrap();
-    sdf_info
-}
+//     let sdf_info: SdfInfo = bitcode::deserialize(&buf[..]).unwrap();
+//     sdf_info
+// }
 
-pub fn compute_shape_sdf_tex(info: SvgInfo, tex_size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> SdfInfo2 {
-    let v = computeShapeSdfTex(info.0.clone(), size, pxrange);
-    let buf = js_sys::Uint8Array::from(v).to_vec();
+// pub fn compute_shape_sdf_tex(
+//     info: SvgInfo,
+//     tex_size: usize,
+//     pxrange: u32,
+//     is_outer_glow: bool,
+//     cur_off: u32,
+// ) -> SdfInfo2 {
+//     let v = computeShapeSdfTex(info.0.clone(), size, pxrange, is_outer_glow, cur_off);
+//     let buf = js_sys::Uint8Array::from(v).to_vec();
 
-    let sdf_info: SdfInfo2 = bincode::deserialize(&buf[..]).unwrap();
-    sdf_info
-}
+//     let sdf_info: SdfInfo2 = bitcode::deserialize(&buf[..]).unwrap();
+//     sdf_info
+// }
 
 // pub fn createCircle(cx: f32, cy: f32, radius: f32) -> JsValue;
 //     pub fn createRect(x: f32, y: f32, width: f32, height: f32) -> JsValue;

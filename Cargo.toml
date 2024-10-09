@@ -56,7 +56,7 @@ ahash = "0.8"
 buddy-alloc = "0.5"
 parry2d = "0.13"
 guillotiere = { version = "0.6" }
-bincode = "1.3"
+bitcode = {version= "0.6", features = [ "serde" ]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 font_kit = { registry = "yn", version = "=0.1.0" }

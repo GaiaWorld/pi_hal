@@ -216,10 +216,10 @@ pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)>{
     "load_font_sdf".hash(&mut hasher);
     let v = create_async_value("file", "load_font_sdf", hasher.finish(), vec![]);
 	let buffer = v.await.unwrap();
-	bincode::deserialize(&buffer[..]).unwrap()
+	bitcode::deserialize(&buffer[..]).unwrap()
 }
 
-pub use pi_sdf::font::{FontFace, SdfInfo, SdfInfo2};
-pub use pi_sdf::glyphy::{blob::{TexInfo, TexInfo2}, geometry::{arc::{ArcEndpoint, Arc as SdfArc}, aabb:: Aabb as SdfAabb}};
-pub use pi_sdf::utils::GlyphInfo;
-pub use pi_sdf::utils::CellInfo;
+pub use pi_sdf::font::FontFace;
+pub use pi_sdf::glyphy::blob::{TexInfo, SdfInfo};
+// pub use pi_sdf::utils::GlyphInfo;
+pub use pi_sdf::utils::{CellInfo, SdfInfo2, LayoutInfo, OutlineInfo};

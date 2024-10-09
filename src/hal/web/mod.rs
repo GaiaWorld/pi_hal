@@ -70,7 +70,7 @@ extern "C" {
     pub fn maxBox(face: JsValue)-> JsValue;
     pub fn maxBoxNormaliz(face: JsValue)-> JsValue;
     pub fn toOutline(face: JsValue, text: String) ->JsValue;
-    pub fn toOutline3(face: JsValue, text: String) ->JsValue;
+    // pub fn toOutline3(face: JsValue, text: String) ->JsValue;
     pub fn glyphIndex(face: JsValue, text: String) -> u16;
     pub fn debugSize(face: JsValue) -> usize;
 
@@ -82,13 +82,18 @@ extern "C" {
     pub fn createPolyline(points: Vec<f32>) -> JsValue;
     pub fn createPath(verb: Vec<u8>, points: Vec<f32>) -> JsValue;
     pub fn getSvgInfo(shape: JsValue) -> JsValue;
-    pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
-    pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
-    pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
+    // pub fn computerSvgSdf(svg_info: JsValue) -> JsValue;
+    // pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
+    // pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub async fn computeNearArcs(info: JsValue, scale: f32) -> JsValue;
     pub fn createSvgInfo(bbox: Vec<f32>, arc_endpoints: Vec<u8>) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
     pub async fn loadFontSdf() -> JsValue;
+
+    pub fn computeLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) ->JsValue;
+    pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) ->JsValue;
+    pub async fn computeSvgSdfTexOfWasm(info: JsValue, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
+    
 }
 
 #[cfg(feature="web_local_load")]
