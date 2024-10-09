@@ -63,15 +63,15 @@ pub struct Font {
 	pub font_family: SmallVec<[Atom; 1]>,
 	pub font_family_string: Atom,
 	pub font_size: usize,
-	pub font_weight: usize,
-	pub stroke: NotNan<f32>,
 	pub font_type: FontType,
-	pub is_outer_glow: Option<u32>,
-	pub shadow: Option<(NotNan<f32>,  NotNan<f32>)>
+	// pub is_outer_glow: Option<u32>,
+	// pub shadow: Option<(NotNan<f32>,  NotNan<f32>)>,
+	pub font_weight: usize,
+	// pub stroke: NotNan<f32>,
 }
 
 impl Font {
-	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize, stroke: NotNan<f32>, is_outer_glow: Option<u32>, shadow: Option<(NotNan<f32>,  NotNan<f32>)>) -> Self {
+	pub fn new(font_family_string: Atom, font_size: usize, font_weight: usize) -> Self {
 		let font_family = font_family_string.split(",");
 		let font_family = font_family.map(|r| {
 			Atom::from(r.trim())
@@ -81,11 +81,11 @@ impl Font {
 			font_family,
 			
 			font_size,
-			font_weight,
-			stroke,
 			font_type: FontType::Bitmap,
-			is_outer_glow,
-			shadow
+			font_weight,
+			// stroke,
+			// is_outer_glow,
+			// shadow
 		}
 	}
 }
@@ -239,6 +239,8 @@ impl FontMgr {
 		
 		let font_id = self.get_or_insert_font(f.clone(), font_face_ids.clone(), font_family_id);
 
+		println!("aaa========={:?}", (font_id, f, font_family_id, &font_face_ids));
+
 		let font_info = &mut self.sheet.fonts[font_id.0];
 
 		self.table.check_or_create_face(font_info, self.font_type);
@@ -278,6 +280,16 @@ impl FontMgr {
 	pub fn glyph_id(&mut self, f: FontId, char: char) -> Option<GlyphId> {
 		let font_info = &mut self.sheet.fonts[f.0];
 		self.table.glyph_id(f, char, font_info, self.font_type)
+	}
+
+	pub fn add_font_shadow(&mut self, f: FontId, id: GlyphId, radius: u32, weight: NotNan<f32>) {
+		let font_info = &self.sheet.fonts[f.0];
+		self.table.sdf2_table. add_font_shadow(id, font_info, radius, weight);
+	}
+
+	pub fn add_font_outer_glow(&mut self, f: FontId, id: GlyphId, range: u32) {
+		let font_info = &self.sheet.fonts[f.0];
+		self.table.sdf2_table. add_font_outer_glow(id, font_info, range);
 	}
 
 	/// 测量宽度
@@ -576,7 +588,7 @@ pub struct DrawBlock {
 	pub font_id: FontId, 
 	pub font_family: SmallVec<[Atom; 1]>,
 	pub font_size: usize,
-	pub font_stroke: NotNan<f32>,
+	// pub font_stroke: NotNan<f32>,
 	pub block: Block,
 	pub font_face_index: usize,
 }

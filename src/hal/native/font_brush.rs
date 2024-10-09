@@ -102,37 +102,38 @@ impl Brush {
 		&mut self, 
 		draw_list: Vec<DrawBlock>,
 		mut update: F) {
-		// 修改为异步，TODO
-		for draw_block in draw_list.into_iter() {
-			let faces = match self.faces.get_mut(*draw_block.font_id) {
-				Some(r) => r,
-				None => return ,
-			};
-			let face = faces.0[draw_block.font_face_index].as_mut().unwrap();
-			// 绘制
-			// face.set_pixel_sizes(draw_block.font_size as u32);
-			// face.set_stroker_width(*draw_block.font_stroke as f64);
+			todo!();
+		// // 修改为异步，TODO
+		// for draw_block in draw_list.into_iter() {
+		// 	let faces = match self.faces.get_mut(*draw_block.font_id) {
+		// 		Some(r) => r,
+		// 		None => return ,
+		// 	};
+		// 	let face = faces.0[draw_block.font_face_index].as_mut().unwrap();
+		// 	// 绘制
+		// 	// face.set_pixel_sizes(draw_block.font_size as u32);
+		// 	// face.set_stroker_width(*draw_block.font_stroke as f64);
 
-			let face = &mut self.base_faces[*face];
-			if face.1 != draw_block.font_size {
-				face.1 = draw_block.font_size;
-				face.0.set_pixel_sizes(draw_block.font_size as u32);
-			}
+		// 	let face = &mut self.base_faces[*face];
+		// 	if face.1 != draw_block.font_size {
+		// 		face.1 = draw_block.font_size;
+		// 		face.0.set_pixel_sizes(draw_block.font_size as u32);
+		// 	}
 
-			if face.2 != *draw_block.font_stroke {
-				face.2 = *draw_block.font_stroke;
-				face.0.set_stroker_width(*draw_block.font_stroke as f64);
-			}
+		// 	if face.2 != *draw_block.font_stroke {
+		// 		face.2 = *draw_block.font_stroke;
+		// 		face.0.set_stroker_width(*draw_block.font_stroke as f64);
+		// 	}
 
-			let (block, image) = draw_sync(
-				draw_block.chars, 
-				draw_block.block,
-				&mut face.0,
-				*draw_block.font_stroke as f64
-			);
+		// 	let (block, image) = draw_sync(
+		// 		draw_block.chars, 
+		// 		draw_block.block,
+		// 		&mut face.0,
+		// 		*draw_block.font_stroke as f64
+		// 	);
 
-			update(block, image);
-		}
+		// 	update(block, image);
+		// }
 	}
 }
 
