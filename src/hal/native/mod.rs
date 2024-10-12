@@ -16,6 +16,7 @@ pub mod runtime;
 pub mod stroe;
 pub mod svg;
 pub mod image_texture_load;
+pub mod sdf2_info;
 // pub use basis_universal::TranscoderTextureFormat::*;
 
 pub enum Arg {

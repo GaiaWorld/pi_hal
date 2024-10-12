@@ -1,5 +1,6 @@
 use crate::font_brush::CellInfo;
 use crate::font_brush::LayoutInfo;
+use crate::sdf2_info::compute_sdf_tex;
 use ordered_float::NotNan;
 use parry2d::math::Vector;
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -1232,19 +1233,20 @@ impl Sdf2Table {
             let await_count = await_count.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
-                    let lock = &mut result1.0.lock().unwrap().svg_result;
-                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
-                    let sdfinfo = info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0);
-                    #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                    let sdfinfo = info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0).await;
-                    lock.push((hash, sdfinfo.clone(), SdfType::Normal));
+                    let sdfinfo = compute_sdf_tex(&info, size, pxrange, false, cur_off, 1.0).await;
+                    {
+                        let lock = &mut result1.0.lock().unwrap().svg_result;
+                        lock.push((hash, sdfinfo.clone(), SdfType::Normal));
+                    }
                     if let Some(outer_glow) = outer_glow {
                         for v in outer_glow {
-                            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
-                            let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0);
-                            #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                            let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0).await;
-                            lock.push((hash, sdfinfo, SdfType::OuterGlow(v)));
+                            let sdfinfo = compute_sdf_tex(&info, size, v, true, v / 2, 1.0).await;
+                            // #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                            // let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0);
+                            // #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                            // let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0).await;
+                            let lock2 = &mut result1.0.lock().unwrap().svg_result;
+                            lock2.push((hash, sdfinfo, SdfType::OuterGlow(v)));
                         }
                     }
 
@@ -1254,6 +1256,7 @@ impl Sdf2Table {
                             sdf_tex,
                             tex_size,
                         } = sdfinfo;
+                        let lock1 = &mut result1.0.lock().unwrap().svg_result;
                         for shadow_range in shadow {
                             let sdf_tex = gaussian_blur(
                                 sdf_tex.clone(),
@@ -1262,7 +1265,7 @@ impl Sdf2Table {
                                 shadow_range,
                                 0.0,
                             );
-                            lock.push((
+                            lock1.push((
                                 hash,
                                 SdfInfo2 {
                                     tex_info: tex_info.clone(),

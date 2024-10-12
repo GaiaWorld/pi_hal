@@ -163,74 +163,6 @@ pub struct ArcEndpoint {
     pub(crate) line_encode: Option<[f32; 4]>, // rgba
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct TexInfo {
-    pub grid_w: f32,
-    pub grid_h: f32,
-
-    pub cell_size: f32,
-
-    pub max_offset: usize,
-    pub min_sdf: f32,
-    pub sdf_step: f32,
-
-    pub index_offset_x: usize,
-    pub index_offset_y: usize,
-    pub data_offset_x: usize,
-    pub data_offset_y: usize,
-    pub char: char,
-    pub extents_min_x: f32,
-    pub extents_min_y: f32,
-    pub extents_max_x: f32,
-    pub extents_max_y: f32,
-    pub binding_box_min_x: f32,
-    pub binding_box_min_y: f32,
-    pub binding_box_max_x: f32,
-    pub binding_box_max_y: f32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct SdfInfo2 {
-    pub tex_info: TexInfo2,
-    pub sdf_tex: Vec<u8>,
-    pub tex_size: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct SdfInfo {
-    pub tex_info: TexInfo,
-    pub data_tex: Vec<u8>,
-    pub index_tex: Vec<u8>,
-    pub sdf_tex1: Vec<u8>,
-    pub sdf_tex2: Vec<u8>,
-    pub sdf_tex3: Vec<u8>,
-    pub sdf_tex4: Vec<u8>,
-    pub grid_size: Vec<f32>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct TexInfo2 {
-    pub sdf_offset_x: usize,
-    pub sdf_offset_y: usize,
-    pub advance: f32,
-    pub char: char,
-    pub plane_min_x: f32,
-    pub plane_min_y: f32,
-    pub plane_max_x: f32,
-    pub plane_max_y: f32,
-    pub atlas_min_x: f32,
-    pub atlas_min_y: f32,
-    pub atlas_max_x: f32,
-    pub atlas_max_y: f32,
-}
-
-pub struct LayoutInfo {
-    pub plane_bounds: Vec<f32>,
-    pub atlas_bounds: Vec<f32>,
-    pub extents: Vec<f32>,
-    pub distance: f32,
-    pub tex_size: u32,
-}
 #[derive(Clone)]
 pub struct OutlineInfo {
     js_value: JsValue,
@@ -378,3 +310,5 @@ pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)> {
     bitcode::deserialize(&data[..]).unwrap()
 }
 pub struct CellInfo;
+pub use pi_sdf::glyphy::blob::{TexInfo, SdfInfo};
+pub use pi_sdf::utils::{SdfInfo2, LayoutInfo};

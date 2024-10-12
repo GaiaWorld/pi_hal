@@ -57,11 +57,11 @@ buddy-alloc = "0.5"
 parry2d = "0.13"
 guillotiere = { version = "0.6" }
 bitcode = {version= "0.6", features = [ "serde" ]}
+pi_sdf = {version = "0.1", registry = "yn"}
+
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 font_kit = { registry = "yn", version = "=0.1.0" }
-pi_sdf = {version = "0.1", registry = "yn"}
-
 
 [features]
 empty=[]
