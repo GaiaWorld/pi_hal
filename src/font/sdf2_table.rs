@@ -311,7 +311,7 @@ impl Sdf2Table {
                     glyph: Glyph::default(),
                 }));
 
-                println!("glyph_id===============: {:?}", (font_id, char));
+                // println!("glyph_id===============: {:?}", (font_id, char));
 
                 if self.glyphs[id.0].font_face_index.is_null() {
                     for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
@@ -719,32 +719,53 @@ impl Sdf2Table {
         fonts: &mut SlotMap<DefaultKey, FontInfo>,
         index: usize,
         result: SdfResult,
+        await_count: usize, 
     ) -> AsyncValue<()> {
-        let task_count = Arc::new(AtomicUsize::new(0));
-        let task_num = Arc::new(AtomicUsize::new(0));
         let async_value = AsyncValue::new();
+        if await_count == 0 {
+            let async_value1 = async_value.clone();
+            let _ = MULTI_MEDIA_RUNTIME
+                .spawn(async move {
+                    async_value1.set(());
+                });
+            return async_value;
+        }
+
+        let task_count = Arc::new(AtomicUsize::new(await_count));
         self.draw_font_await(
             fonts,
             result.clone(),
             index,
             task_count.clone(),
-            task_num.clone(),
             async_value.clone(),
         );
         self.draw_svg_await(
             result.clone(),
             task_count.clone(),
-            task_num.clone(),
             async_value.clone(),
         );
         self.draw_box_shadow_await(
             result.clone(),
             task_count.clone(),
-            task_num.clone(),
+
             async_value.clone(),
         );
+        
 
         async_value
+    }
+    pub fn draw_count(&self,  fonts: &SlotMap<DefaultKey, FontInfo>) -> usize {
+        let mut count = 0;
+        // 文字数量
+        for (_, font_info) in fonts.iter() {
+            count += font_info.await_info.wait_list.len();
+        }
+        count += self.shapes.len();
+        count += self.bboxs.len();
+        if count > 0 {
+            log::info!("task_count=========={:?}", (count - self.bboxs.len() - self.shapes.len(), self.shapes.len(), self.bboxs.len(),));
+        }
+        count
     }
 
     /// 更新字形信息（计算圆弧信息）
@@ -753,22 +774,10 @@ impl Sdf2Table {
         fonts: &mut SlotMap<DefaultKey, FontInfo>,
         result: SdfResult,
         index: usize,
-        task_count: Arc<AtomicUsize>,
-        task_num: Arc<AtomicUsize>,
+        await_count: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
     ) {
         // let mut await_count = 0;
-        let await_count = task_count;
-        for (_, font_info) in fonts.iter() {
-            await_count.fetch_add(font_info.await_info.wait_list.len(), Ordering::Relaxed);
-        }
-
-        // let async_value = AsyncValue::new();
-        if await_count.load(Ordering::Relaxed) == 0 {
-            // async_value.clone().set(());
-            // println!("encode_data_texzzzzz===={:?}, {:?}", index, await_count);
-            return;
-        }
 
         // 轮廓信息（贝塞尔曲线）
         let mut outline_infos = Vec::with_capacity(await_count.load(Ordering::Relaxed));
@@ -789,6 +798,8 @@ impl Sdf2Table {
                     let g = &self.glyphs[*glyph_id];
                     // font_face_index不存在， 不需要计算
                     if g.font_face_index.is_null() {
+                        log::warn!("font_face_index null=============");
+                        await_count.fetch_sub(1, Ordering::Relaxed);
                         continue;
                     }
                     let font_face_id = font_info.font_ids[g.font_face_index];
@@ -844,7 +855,6 @@ impl Sdf2Table {
                     let async_value1 = async_value.clone();
                     let result = result.clone();
                     // println!("encode_data_tex===={:?}", index);
-                    let task_num = task_num.clone();
                     let await_count = await_count.clone();
 
                     let key = keys[ll].clone();
@@ -867,7 +877,7 @@ impl Sdf2Table {
                                 // let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
-                                    let arcs = glyph_visitor.0.compute_near_arcs(1.0);
+                                    let arcs = glyph_visitor.0.compute_near_arcs(3.0);
                                     let buffer = bincode::serialize(&arcs).unwrap();
                                     stroe::write(key, buffer).await;
                                     arcs
@@ -949,12 +959,12 @@ impl Sdf2Table {
 
                             // log::debug!("load========={:?}, {:?}", lock.0, len);
                             // let mut lock = result1.lock().unwrap();
-                            task_num.fetch_add(1, Ordering::Relaxed);
                             // println!("encode_data_tex0===={:?}", (index, ll));
                             // log::trace!("encode_data_tex======cur_count: {:?}, atlas_bounds={:?}, await_count={:?}, tex_size={:?}", lock.0, atlas_bounds, await_count, tex_size);
                             // lock.1.push((glyph_visitor.2 .0, sdf));
-                            if task_num.load(Ordering::Relaxed)
-                                == await_count.load(Ordering::Relaxed)
+                            let r = await_count.fetch_sub(1, Ordering::Relaxed);
+                            // log::warn!("r1============{:?}", r);
+                            if r == 1
                             {
                                 log::trace!("encode_data_tex1");
                                 async_value1.set(());
@@ -1083,12 +1093,9 @@ impl Sdf2Table {
     pub fn draw_box_shadow_await(
         &mut self,
         result: SdfResult,
-        task_count: Arc<AtomicUsize>,
-        task_num: Arc<AtomicUsize>,
+        await_count: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
     ) {
-        let _ = task_count.fetch_add(self.bboxs.len(), Ordering::Relaxed);
-        let await_count = task_count;
 
         // let async_value = AsyncValue::new();
 
@@ -1096,7 +1103,6 @@ impl Sdf2Table {
         for (hash, box_info) in self.bboxs.drain() {
             let async_value1 = async_value.clone();
             let result1 = result.clone();
-            let task_num = task_num.clone();
             let await_count = await_count.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
@@ -1104,10 +1110,9 @@ impl Sdf2Table {
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
                     let lock = &mut result1.0.lock().unwrap().box_result;
-                    task_num.fetch_add(1, Ordering::Relaxed);
                     // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
                     lock.push((hash, box_info, sdfinfo));
-                    if task_num.load(Ordering::Relaxed) == await_count.load(Ordering::Relaxed) {
+                    if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
                         log::trace!("encode_data_tex1");
                         async_value1.set(());
                         log::trace!("encode_data_tex2");
@@ -1180,12 +1185,9 @@ impl Sdf2Table {
     pub fn draw_svg_await(
         &mut self,
         result: SdfResult,
-        task_count: Arc<AtomicUsize>,
-        task_num: Arc<AtomicUsize>,
+        await_count: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
     ) {
-        task_count.fetch_add(self.shapes_tex_info.len(), Ordering::Relaxed);
-        let await_count = task_count;
         // let texture_data = Vec::with_capacity(await_count);
         // result.lock().unwrap().1.reserve(await_count);
         // let result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>> =
@@ -1200,7 +1202,6 @@ impl Sdf2Table {
             let async_value1 = async_value.clone();
             let result1 = result.clone();
 
-            let task_num = task_num.clone();
             let await_count = await_count.clone();
             MULTI_MEDIA_RUNTIME
                 .spawn(async move {
@@ -1243,10 +1244,9 @@ impl Sdf2Table {
 
                     // log::debug!("load========={:?}, {:?}", lock.0, len);
 
-                    task_num.fetch_add(1, Ordering::Relaxed);
                     // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
 
-                    if await_count.load(Ordering::Relaxed) == task_num.load(Ordering::Relaxed) {
+                    if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
                         log::trace!("encode_data_tex1");
                         async_value1.set(());
                         log::trace!("encode_data_tex2");

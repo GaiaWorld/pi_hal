@@ -97,7 +97,7 @@ impl Brush {
                 draw_block.chars,
                 &draw_block.block,
                 font,
-                *draw_block.font_stroke as f64,
+                1.0,
                 &self.canvas,
                 &self.ctx,
             );

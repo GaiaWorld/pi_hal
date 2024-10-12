@@ -1,3 +1,6 @@
+pub use pi_sdf::shape::*;
+pub use pi_sdf::font::SdfInfo2;
+
 use crate::{
     computeArcsSdfTex, computeShapeSdfTex, computerSvgSdf, createCircle, createEllipse, createPath,
     createPolygon, createPolyline, createRect, createSegment, createSvgInfo, free, getSvgInfo,
@@ -162,7 +165,7 @@ pub fn computer_svg_sdf(info: SvgInfo) -> SdfInfo {
 }
 
 pub fn compute_shape_sdf_tex(info: SvgInfo, tex_size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> SdfInfo2 {
-    let v = computeShapeSdfTex(info.0.clone(), size, pxrange);
+    let v = computeShapeSdfTex(info.0.clone(), size, pxrange, is_outer_glow, cur_off);
     let buf = js_sys::Uint8Array::from(v).to_vec();
 
     let sdf_info: SdfInfo2 = bincode::deserialize(&buf[..]).unwrap();

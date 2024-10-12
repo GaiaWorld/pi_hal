@@ -239,7 +239,7 @@ impl FontMgr {
 		
 		let font_id = self.get_or_insert_font(f.clone(), font_face_ids.clone(), font_family_id);
 
-		println!("aaa========={:?}", (font_id, f, font_family_id, &font_face_ids));
+		// println!("aaa========={:?}", (font_id, f, font_family_id, &font_face_ids));
 
 		let font_info = &mut self.sheet.fonts[font_id.0];
 
