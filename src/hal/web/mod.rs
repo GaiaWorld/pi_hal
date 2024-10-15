@@ -92,9 +92,9 @@ extern "C" {
     pub async fn loadFontSdf() -> JsValue;
 
     pub fn computeLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
-    pub fn computeSvgLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
-    pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) ->JsValue;
-    pub async fn computeSvgSdfTexOfWasm(info: JsValue, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
+    pub fn computeSvgLayout(bbox: &[f32], size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
+    pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, ) ->JsValue;
+    pub async fn computeSvgSdfTexOfWasm(info: Vec<u8>, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, scale: f32) -> JsValue;
     
 }
 

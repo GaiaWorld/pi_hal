@@ -13,7 +13,10 @@ use wasm_bindgen::JsValue;
 // pub use pi_sdf::utils::SdfInfo2;
 
 #[derive(Debug, Clone)]
-pub struct SvgInfo(JsValue);
+pub struct SvgInfo {
+    buf: Vec<u8>,
+    binding_box: Vec<f32>,
+}
 
 impl SvgInfo {
     pub fn new(
@@ -22,11 +25,18 @@ impl SvgInfo {
         is_area: bool,
         is_reverse: Option<bool>,
     ) -> Self {
-        Self(createSvgInfo(binding_box, points, is_area, is_reverse))
+        let info = createSvgInfo(binding_box, points, is_area, is_reverse);
+        let binding_box = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let binding_box = js_sys::Float32Array::from(binding_box).to_vec();
+
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let buf = js_sys::Uint8Array::from(buf).to_vec();
+        Self { binding_box, buf }
     }
 
     pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
-        let v = computeSvgLayout(self.0.clone(), tex_size, pxrange, cur_off);
+        let v = computeSvgLayout(&self.binding_box, tex_size, pxrange, cur_off);
+
         log::error!("computeLayout: {:?}", v);
         let v = js_sys::Float32Array::from(v).to_vec();
         LayoutInfo {
@@ -46,15 +56,9 @@ impl SvgInfo {
         cur_off: u32,
         scale: f32,
     ) -> SdfInfo2 {
-        // let sdf_info = match JsValue::from_serde(sdf_info) {
-        //     Ok(r) => r,
-        //     Err(_e) => {
-        //         log::info!("serde sdf_info fail");
-        //         panic!();
-        //     }
-        // };
+        // log:
         let js_value =
-            computeSvgSdfTexOfWasm(self.0.clone(), tex_size, pxrange, is_outer_glow, cur_off).await;
+            computeSvgSdfTexOfWasm(self.buf.clone(), tex_size, pxrange, is_outer_glow, cur_off, scale).await;
         let bytes = js_sys::Uint8Array::from(js_value).to_vec();
         bitcode::deserialize(&bytes).unwrap()
     }
@@ -62,7 +66,7 @@ impl SvgInfo {
 
 impl Drop for SvgInfo {
     fn drop(&mut self) {
-        free(self.0.clone());
+        // free(self.0.clone());
     }
 }
 
@@ -74,7 +78,13 @@ impl Rect {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -92,7 +102,13 @@ impl Circle {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -110,7 +126,13 @@ impl Ellipse {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -128,7 +150,13 @@ impl Segment {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -146,7 +174,13 @@ impl Polygon {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -164,7 +198,13 @@ impl Polyline {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 
@@ -212,7 +252,13 @@ impl Path {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        SvgInfo(getSvgInfo(self.0.clone()))
+        let info = getSvgInfo(self.0.clone());
+        let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
+        let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        SvgInfo {
+            buf: js_sys::Uint8Array::from(buf).to_vec(),
+            binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+        }
     }
 }
 

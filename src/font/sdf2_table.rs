@@ -874,12 +874,13 @@ impl Sdf2Table {
                 }
                 // log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
                 // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-                for mut glyph_visitor in outline_infos.drain(..) {
+                let mut index = 0;
+                for glyph_visitor in outline_infos.drain(..) {
                     let async_value1 = async_value.clone();
                     let result = result.clone();
                     // println!("encode_data_tex===={:?}", index);
                     let await_count = await_count.clone();
-
+                    let char = chars[index];
                     let key = keys[ll].clone();
                     MULTI_MEDIA_RUNTIME
                         .spawn(async move {
@@ -923,13 +924,15 @@ impl Sdf2Table {
                                 }
                             };
                             let lock = &mut result.0.lock().unwrap().font_result;
-                            let sdf = glyph_visitor.0.compute_sdf_tex(
+                            let mut sdf = glyph_visitor.0.compute_sdf_tex(
                                 result_arcs.clone(),
                                 FONT_SIZE,
                                 PXRANGE,
                                 false,
                                 PXRANGE,
                             );
+                            sdf.tex_info.char = char;
+                            // log::error!("char: {:?}", sdf.tex_info);
                             lock.push((glyph_visitor.2 .0, sdf, SdfType::Normal));
 
                             if let Some(outer_ranges) = glyph_visitor.3 {
