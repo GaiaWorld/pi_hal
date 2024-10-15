@@ -3,9 +3,7 @@ use std::mem::transmute;
 use crate::createFace;
 use crate::{
     ascender, computerSdf, descender,
-    font::font::{
-        Await, Block, DrawBlock, Font, FontImage, FontInfo, BASE_FONT_SIZE,
-    },
+    font::font::{Await, Block, DrawBlock, Font, FontImage, FontInfo, BASE_FONT_SIZE},
     horizontalAdvance, maxBox, maxBoxNormaliz, measureText,
 };
 use parry2d::{bounding_volume::Aabb, math::Point};
@@ -17,7 +15,9 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 
 use super::{
-    computeLayout, computeNearArcs, computeSdfTex, computeSdfTexOfWasm, debugSize, drawChar, drawCharWithStroke, fillBackGround, free, getGlobalMetricsHeight, glyphIndex, loadFontSdf, setFont, toOutline
+    computeLayout, computeNearArcs, computeSdfTex, computeSdfTexOfWasm, debugSize, drawChar,
+    drawCharWithStroke, fillBackGround, free, getGlobalMetricsHeight, glyphIndex, loadFontSdf,
+    setFont, toOutline,
 };
 
 pub struct Brush {
@@ -171,6 +171,75 @@ pub struct OutlineInfo {
     pub bbox: Vec<f32>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct TexInfo {
+    pub grid_w: f32,
+    pub grid_h: f32,
+
+    pub cell_size: f32,
+
+    pub max_offset: usize,
+    pub min_sdf: f32,
+    pub sdf_step: f32,
+
+    pub index_offset_x: usize,
+    pub index_offset_y: usize,
+    pub data_offset_x: usize,
+    pub data_offset_y: usize,
+    pub char: char,
+    pub extents_min_x: f32,
+    pub extents_min_y: f32,
+    pub extents_max_x: f32,
+    pub extents_max_y: f32,
+    pub binding_box_min_x: f32,
+    pub binding_box_min_y: f32,
+    pub binding_box_max_x: f32,
+    pub binding_box_max_y: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct SdfInfo2 {
+    pub tex_info: TexInfo2,
+    pub sdf_tex: Vec<u8>,
+    pub tex_size: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct SdfInfo {
+    pub tex_info: TexInfo,
+    pub data_tex: Vec<u8>,
+    pub index_tex: Vec<u8>,
+    pub sdf_tex1: Vec<u8>,
+    pub sdf_tex2: Vec<u8>,
+    pub sdf_tex3: Vec<u8>,
+    pub sdf_tex4: Vec<u8>,
+    pub grid_size: Vec<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TexInfo2 {
+    pub sdf_offset_x: usize,
+    pub sdf_offset_y: usize,
+    pub advance: f32,
+    pub char: char,
+    pub plane_min_x: f32,
+    pub plane_min_y: f32,
+    pub plane_max_x: f32,
+    pub plane_max_y: f32,
+    pub atlas_min_x: f32,
+    pub atlas_min_y: f32,
+    pub atlas_max_x: f32,
+    pub atlas_max_y: f32,
+}
+
+pub struct LayoutInfo {
+    pub plane_bounds: Vec<f32>,
+    pub atlas_bounds: Vec<f32>,
+    pub extents: Vec<f32>,
+    pub distance: f32,
+    pub tex_size: u32,
+}
+
 impl OutlineInfo {
     pub async fn compute_near_arcs(&self, scale: f32) -> Vec<u8> {
         let buf = computeNearArcs(self.js_value.clone(), scale).await;
@@ -180,18 +249,13 @@ impl OutlineInfo {
 
     pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
         let v = computeLayout(self.js_value.clone(), tex_size, pxrange, cur_off);
-        let plane_bounds = js_sys::Reflect::get(&v, &"plane_bounds".to_string().into()).unwrap();
-        let atlas_bounds = js_sys::Reflect::get(&v, &"atlas_bounds".to_string().into()).unwrap();
-        let extents = js_sys::Reflect::get(&v, &"extents".to_string().into()).unwrap();
-        let distance = js_sys::Reflect::get(&v, &"distance".to_string().into()).unwrap();
-        let tex_size = js_sys::Reflect::get(&v, &"tex_size".to_string().into()).unwrap();
-
+        let v = js_sys::Float32Array::from(v).to_vec();
         LayoutInfo {
-            plane_bounds: js_sys::Float32Array::from(plane_bounds).to_vec(),
-            atlas_bounds: js_sys::Float32Array::from(atlas_bounds).to_vec(),
-            extents: js_sys::Float32Array::from(extents).to_vec(),
-            distance: distance.as_f64().unwrap() as f32,
-            tex_size: tex_size.as_f64().unwrap() as u32,
+            plane_bounds: vec![v[0], v[1], v[2], v[3]],
+            atlas_bounds: vec![v[4], v[5], v[6], v[7]],
+            extents: vec![v[8], v[9], v[10], v[11]],
+            distance: v[12],
+            tex_size: v[13] as u32,
         }
     }
 
@@ -203,7 +267,14 @@ impl OutlineInfo {
         is_outer_glow: bool,
         cur_off: u32,
     ) -> SdfInfo2 {
-        let js_value = computeSdfTexOfWasm(self.js_value.clone(), result_arcs, tex_size, pxrange, is_outer_glow, cur_off);
+        let js_value = computeSdfTexOfWasm(
+            self.js_value.clone(),
+            result_arcs,
+            tex_size,
+            pxrange,
+            is_outer_glow,
+            cur_off,
+        );
         let bytes = js_sys::Uint8Array::from(js_value).to_vec();
         bitcode::deserialize(&bytes).unwrap()
     }
@@ -278,7 +349,8 @@ impl FontFace {
     pub fn to_outline(&self, c: char) -> OutlineInfo {
         let js_value = toOutline(self.0.clone(), c.to_string());
         let bbox = js_sys::Reflect::get(&js_value, &"bbox".to_string().into()).unwrap();
-        let units_per_em = js_sys::Reflect::get(&js_value, &"units_per_em".to_string().into()).unwrap();
+        let units_per_em =
+            js_sys::Reflect::get(&js_value, &"units_per_em".to_string().into()).unwrap();
         let advance = js_sys::Reflect::get(&js_value, &"advance".to_string().into()).unwrap();
         OutlineInfo {
             js_value,
@@ -310,5 +382,5 @@ pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)> {
     bitcode::deserialize(&data[..]).unwrap()
 }
 pub struct CellInfo;
-pub use pi_sdf::glyphy::blob::{TexInfo, SdfInfo};
-pub use pi_sdf::utils::{SdfInfo2, LayoutInfo};
+// pub use pi_sdf::glyphy::blob::{TexInfo, SdfInfo};
+// pub use pi_sdf::utils::{SdfInfo2, LayoutInfo};

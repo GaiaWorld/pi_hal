@@ -87,11 +87,12 @@ extern "C" {
     // pub fn computeShapeSdfTex(info: JsValue, size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
     // pub fn computeArcsSdfTex(info: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub async fn computeNearArcs(info: JsValue, scale: f32) -> JsValue;
-    pub fn createSvgInfo(bbox: Vec<f32>, arc_endpoints: Vec<u8>) -> JsValue;
+    pub fn createSvgInfo(bbox: &[f32], arc_endpoints: Vec<f32>, is_area: bool, is_reverse: Option<bool>,) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
     pub async fn loadFontSdf() -> JsValue;
 
-    pub fn computeLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) ->JsValue;
+    pub fn computeLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
+    pub fn computeSvgLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
     pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) ->JsValue;
     pub async fn computeSvgSdfTexOfWasm(info: JsValue, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32) -> JsValue;
     

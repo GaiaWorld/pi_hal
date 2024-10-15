@@ -1,6 +1,6 @@
-use pi_sdf::{shape::SvgInfo, utils::{LayoutInfo, SdfInfo2}};
-use wasm_bindgen::JsValue;
-use super::computeSvgSdfTexOfWasm;
+// use pi_sdf::{shape::SvgInfo, utils::{LayoutInfo, SdfInfo2}};
+// use wasm_bindgen::JsValue;
+// use super::{computeSvgSdfTexOfWasm, svg::SvgInfo};
 
 // pub fn compute_layout(sdf_info: &SvgInfo, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
 //     let sdf_info = match JsValue::from_serde(sdf_info) {
@@ -26,22 +26,22 @@ use super::computeSvgSdfTexOfWasm;
 //     }
 // }
 
-pub async fn compute_sdf_tex(
-    sdf_info: &SvgInfo,
-    tex_size: usize,
-    pxrange: u32,
-    is_outer_glow: bool,
-    cur_off: u32,
-    scale: f32,
-)->  SdfInfo2{
-    let sdf_info = match JsValue::from_serde(sdf_info) {
-        Ok(r) => r,
-        Err(_e) => {
-            log::info!("serde sdf_info fail");
-            panic!();
-        }
-    };
-    let js_value = computeSvgSdfTexOfWasm(sdf_info, tex_size, pxrange, is_outer_glow, cur_off).await;
-    let bytes = js_sys::Uint8Array::from(js_value).to_vec();
-    bitcode::deserialize(&bytes).unwrap()
-}
+// pub async fn compute_sdf_tex(
+//     sdf_info: &SvgInfo,
+//     tex_size: usize,
+//     pxrange: u32,
+//     is_outer_glow: bool,
+//     cur_off: u32,
+//     scale: f32,
+// )->  SdfInfo2{
+//     let sdf_info = match JsValue::from_serde(sdf_info) {
+//         Ok(r) => r,
+//         Err(_e) => {
+//             log::info!("serde sdf_info fail");
+//             panic!();
+//         }
+//     };
+//     let js_value = computeSvgSdfTexOfWasm(sdf_info, tex_size, pxrange, is_outer_glow, cur_off).await;
+//     let bytes = js_sys::Uint8Array::from(js_value).to_vec();
+//     bitcode::deserialize(&bytes).unwrap()
+// }
