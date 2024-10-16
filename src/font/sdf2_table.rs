@@ -349,7 +349,7 @@ impl Sdf2Table {
                                 x: offset.x as f32 + atlas_bounds[0],
                                 y: offset.y as f32 + atlas_bounds[1],
                                 width: atlas_bounds[2] - atlas_bounds[0],
-                                height: atlas_bounds[3] - atlas_bounds[0],
+                                height: atlas_bounds[3] - atlas_bounds[1],
                                 advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
@@ -418,7 +418,7 @@ impl Sdf2Table {
                 x: offset.x as f32 + atlas_bounds[0],
                 y: offset.y as f32 + atlas_bounds[1],
                 width: atlas_bounds[2] - atlas_bounds[0],
-                height: atlas_bounds[3] - atlas_bounds[0],
+                height: atlas_bounds[3] - atlas_bounds[1],
                 advance: outline_info.advance as f32,
             };
             vacant_entry.insert(glyph);
@@ -465,7 +465,7 @@ impl Sdf2Table {
                 x: offset.x as f32 + atlas_bounds[0],
                 y: offset.y as f32 + atlas_bounds[1],
                 width: atlas_bounds[2] - atlas_bounds[0],
-                height: atlas_bounds[3] - atlas_bounds[0],
+                height: atlas_bounds[3] - atlas_bounds[1],
                 advance: outline_info.advance as f32,
             };
             vacant_entry.insert(glyph);
