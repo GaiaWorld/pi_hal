@@ -63,7 +63,7 @@ use pi_async_rt::prelude::AsyncRuntime;
 
 static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
-
+static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
 pub static PXRANGE: u32 = 10 / 2;
 // /// 二维装箱
@@ -83,7 +83,7 @@ pub struct Sdf2Table {
     // text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
     // blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
-    glyph_id_map: XHashMap<(FontFamilyId, char), GlyphId>,
+    glyph_id_map: XHashMap<(FontFaceId, char), GlyphId>,
     pub glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 
     pub(crate) index_packer: TextPacker,
@@ -134,7 +134,8 @@ pub struct SvgTexInfo {
 impl Sdf2Table {
     pub fn new(width: usize, height: usize) -> Self {
         let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
-            if !INTI_STROE.load(Ordering::Relaxed) {
+            if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
+                IS_FIRST.store(false, Ordering::Relaxed);
                 init_local_store().await;
                 log::error!("init_local_store end");
                 INTI_STROE.store(true, Ordering::Relaxed);
@@ -264,36 +265,39 @@ impl Sdf2Table {
 
     // 文字宽度
     pub fn width(&mut self, font_id: FontId, font: &mut FontInfo, char: char) -> (f32, GlyphId) {
-        let glyph_id = self.glyph_id(font_id, font, char);
-        if self.glyphs[glyph_id.0].font_face_index.is_null() {
-            for (index, font_id) in font.font_ids.iter().enumerate() {
-                if let Some(r) = self.fonts.get_mut(font_id.0) {
-                    let horizontal_advance = r.horizontal_advance(char);
-                    if horizontal_advance >= 0.0 {
-                        self.glyphs[glyph_id.0].font_face_index = index;
-                        log::debug!(
-                            "mesure char width first, char: {}, font_id: {:?}, width: {:?}",
-                            char,
-                            font_id,
-                            (
-                                horizontal_advance,
-                                font.font.font_size as f32,
-                                horizontal_advance * font.font.font_size as f32
-                            )
-                        );
-                        self.glyphs[glyph_id.0].glyph.advance = horizontal_advance;
-                        return (horizontal_advance * font.font.font_size as f32, glyph_id);
-                    }
-                };
-            }
-        } else {
-            return (
-                self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32,
-                glyph_id,
-            );
-        }
 
-        return (0.0, glyph_id);
+        if let Some(glyph_id) = self.glyph_id(font_id, font, char){
+            if self.glyphs[glyph_id.0].font_face_index.is_null() {
+                for (index, font_id) in font.font_ids.iter().enumerate() {
+                    if let Some(r) = self.fonts.get_mut(font_id.0) {
+                        let horizontal_advance = r.horizontal_advance(char);
+                        if horizontal_advance >= 0.0 {
+                            self.glyphs[glyph_id.0].font_face_index = index;
+                            log::debug!(
+                                "mesure char width first, char: {}, font_id: {:?}, width: {:?}",
+                                char,
+                                font_id,
+                                (
+                                    horizontal_advance,
+                                    font.font.font_size as f32,
+                                    horizontal_advance * font.font.font_size as f32
+                                )
+                            );
+                            self.glyphs[glyph_id.0].glyph.advance = horizontal_advance;
+                            return (horizontal_advance * font.font.font_size as f32, glyph_id);
+                        }
+                    };
+                }
+            } else {
+                return (
+                    self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32,
+                    glyph_id,
+                );
+            }
+        }
+        
+
+        return (0.0, GlyphId(DefaultKey::null()));
     }
 
     pub fn glyph_id_desc(&self, glyph_id: GlyphId) -> &GlyphIdDesc {
@@ -301,26 +305,30 @@ impl Sdf2Table {
     }
 
     // 字形id
-    pub fn glyph_id(&mut self, font_id: FontId, font_info: &mut FontInfo, char: char) -> GlyphId {
-        let id = match self.glyph_id_map.entry((font_info.font_family_id, char)) {
-            Entry::Occupied(r) => {
-                let id = r.get().clone();
-                return id;
-            }
-            Entry::Vacant(r) => {
-                // 分配GlyphId
-                let id = GlyphId(self.glyphs.insert(GlyphIdDesc {
-                    font_id,
-                    char,
-                    font_face_index: pi_null::Null::null(),
-                    glyph: Glyph::default(),
-                }));
-
-                // println!("glyph_id===============: {:?}", (font_id, char));
-
-                if self.glyphs[id.0].font_face_index.is_null() {
-                    for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
-                        if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
+    pub fn glyph_id(&mut self, font_id: FontId, font_info: &mut FontInfo, char: char) -> Option<GlyphId> {
+        for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
+            if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
+                let glyph_index = font_face.glyph_index(char);
+                // 字体中存在字符
+                if glyph_index > 0 {
+                    match self.glyph_id_map.entry((*font_face_id, char)) {
+                        Entry::Occupied(r) => {
+                            let id = r.get().clone();
+                            return Some(id);
+                        }
+                        Entry::Vacant(r) => {
+                            // 分配GlyphId
+                            let id = GlyphId(self.glyphs.insert(GlyphIdDesc {
+                                font_id,
+                                char,
+                                font_face_index: pi_null::Null::null(),
+                                glyph: Glyph::default(),
+                            }));
+            
+                            // log::error!("glyph_id===============: {:p}", (font_id, char, id));
+            
+                            // if self.glyphs[id.0].font_face_index.is_null() {
+                         
                             let outline_info = font_face.to_outline(char);
 
                             let LayoutInfo {
@@ -353,25 +361,24 @@ impl Sdf2Table {
                                 advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
+                            
                             self.outline_info
                                 .insert((font_face_id.0, char), outline_info);
-                        };
-                    }
+            
+                            if !char.is_whitespace() {
+                                // 不是空白符， 才需要放入等待队列
+                                font_info.await_info.wait_list.push(id);
+                            }
+                            let _ = r.insert(id).clone();
+                            return Some(id);
+                        }
+                    };
+            
+                    
                 }
-
-                // 放入等待队列, 并统计等待队列的总宽度
-                // font.await_info.size.width += size.width.ceil() as usize;
-                // font.await_info.size.height += size.height.ceil() as usize;
-
-                if !char.is_whitespace() {
-                    // 不是空白符， 才需要放入等待队列
-                    font_info.await_info.wait_list.push(id);
-                }
-                r.insert(id).clone()
             }
-        };
-
-        return id;
+        }
+        None
     }
 
     // 字形id
@@ -840,7 +847,7 @@ impl Sdf2Table {
                         // #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
                         // ;
                         outline_infos.push((
-                            self.outline_info.remove(&(font_face_id.0, g.char)).unwrap(),
+                            self.outline_info.remove(&(font_face_id.0, g.char)).expect(&format!("font_face_id.0: {:?}, g.char: {}, glyph_id: {:?}, self: {:?}, not in outline_info!!!", font_face_id.0, g.char, glyph_id, 1)),
                             font_face_id.0,
                             glyph_id,
                             is_outer_glow,

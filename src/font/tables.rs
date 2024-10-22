@@ -105,7 +105,7 @@ impl FontTable {
 			FontType::Sdf1 => {
 				self.sdf_table.glyph_id(f, font_info, char)
 			},
-			FontType::Sdf2 => Some(self.sdf2_table.glyph_id(f, font_info, char)),
+			FontType::Sdf2 => self.sdf2_table.glyph_id(f, font_info, char),
 		}
 	}
 
