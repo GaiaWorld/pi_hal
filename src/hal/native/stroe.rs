@@ -34,14 +34,13 @@ pub async fn init_local_store() {
 /**
  * 从indexDb读数据
  */
-// tslint:disable-next-line:no-reserved-keywords
 pub async fn get(key: String) -> Option<Vec<u8>> {
-    println!("init_local_store get key: {}", key);
+    // println!("init_local_store get key: {}", key);
     if let Some(path) = STROE_PATH.read().as_ref() {
         let path = path.join(key);
-        println!("init_local_store get222 key: {:?}", path);
+        // println!("init_local_store get222 key: {:?}", path);
         if let Ok(data) = std::fs::read(path) {
-            println!("init_local_store get333 key: {:?}", data.len());
+            // println!("init_local_store get333 key: {:?}", data.len());
             return Some(data);
         }
     }
@@ -52,10 +51,10 @@ pub async fn get(key: String) -> Option<Vec<u8>> {
  * 往indexDb写数据
  */
 pub async fn write(key: String, data: Vec<u8>) {
-    println!("init_local_store write key: {}", key);
+    // println!("init_local_store write key: {}", key);
     if let Some(path) = STROE_PATH.read().as_ref() {
         let path = path.join(key);
-        println!("init_local_store write222 key: {:?}", path);
+        // println!("init_local_store write222 key: {:?}", path);
         let _ = std::fs::write(path, data);
     }
 }
@@ -64,7 +63,7 @@ pub async fn write(key: String, data: Vec<u8>) {
  * 从indexDb删除数据
  */
 pub async fn delete_key(key: String) {
-    println!("init_local_store delete_key: {}", key);
+    // println!("init_local_store delete_key: {}", key);
     if let Some(path) = STROE_PATH.read().as_ref() {
         let path = path.join(key);
         let _ = std::fs::remove_file(path);
