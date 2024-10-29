@@ -41,6 +41,7 @@ use pi_slotmap::{DefaultKey, SecondaryMap, SlotMap};
 
 use super::blur::compute_box_layout;
 use super::blur::BoxInfo;
+use super::font::GlyphSheet;
 use super::{
     blur::{blur_box, gaussian_blur},
     font::{
@@ -62,6 +63,7 @@ use pi_async_rt::prelude::AsyncRuntime;
 // use pi_async_rt::prelude::serial::AsyncRuntime;
 
 static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
+static SDF_FONT: Mutex<Option<HashMap<String, Vec<u8>>>> = Mutex::new(None);
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
@@ -265,8 +267,7 @@ impl Sdf2Table {
 
     // 文字宽度
     pub fn width(&mut self, font_id: FontId, font: &mut FontInfo, char: char) -> (f32, GlyphId) {
-
-        if let Some(glyph_id) = self.glyph_id(font_id, font, char){
+        if let Some(glyph_id) = self.glyph_id(font_id, font, char) {
             if self.glyphs[glyph_id.0].font_face_index.is_null() {
                 for (index, font_id) in font.font_ids.iter().enumerate() {
                     if let Some(r) = self.fonts.get_mut(font_id.0) {
@@ -295,7 +296,6 @@ impl Sdf2Table {
                 );
             }
         }
-        
 
         return (0.0, GlyphId(DefaultKey::null()));
     }
@@ -305,7 +305,13 @@ impl Sdf2Table {
     }
 
     // 字形id
-    pub fn glyph_id(&mut self, font_id: FontId, font_info: &mut FontInfo, char: char) -> Option<GlyphId> {
+    pub fn glyph_id(
+        &mut self,
+        font_id: FontId,
+        font_info: &mut FontInfo,
+        char: char,
+    ) -> Option<GlyphId> {
+        // log::error!("glyph_id: {:?}",(&font_id, char));
         for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                 let glyph_index = font_face.glyph_index(char);
@@ -324,11 +330,11 @@ impl Sdf2Table {
                                 font_face_index: pi_null::Null::null(),
                                 glyph: Glyph::default(),
                             }));
-            
+
                             // log::error!("glyph_id===============: {:p}", (font_id, char, id));
-            
+
                             // if self.glyphs[id.0].font_face_index.is_null() {
-                         
+
                             let outline_info = font_face.to_outline(char);
 
                             let LayoutInfo {
@@ -361,20 +367,19 @@ impl Sdf2Table {
                                 advance: outline_info.advance as f32,
                             };
                             self.glyphs[id.0].glyph = glyph;
-                            
+
                             self.outline_info
                                 .insert((font_face_id.0, char), outline_info);
-            
+
                             if !char.is_whitespace() {
                                 // 不是空白符， 才需要放入等待队列
+                                // log::error!("================ glyph_id: {:?}",( font_info.await_info.wait_list.len(), self.glyphs[id.0].char, char, id));
                                 font_info.await_info.wait_list.push(id);
                             }
                             let _ = r.insert(id).clone();
                             return Some(id);
                         }
                     };
-            
-                    
                 }
             }
         }
@@ -610,10 +615,10 @@ impl Sdf2Table {
 
     /// 取到字形信息
     pub fn glyph(&self, id: GlyphId) -> &Glyph {
-        if self.glyphs.get(*id).is_none() {
+        if self.glyphs.get(id.0).is_none() {
             panic!("glyph is not exist, {:?}", id);
         }
-        &self.glyphs[*id].glyph
+        &self.glyphs[id.0].glyph
     }
 
     // /// 更新字形信息（计算圆弧信息）
@@ -750,7 +755,7 @@ impl Sdf2Table {
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_await(
         &mut self,
-        fonts: &mut SlotMap<DefaultKey, FontInfo>,
+        sheet: &mut GlyphSheet,
         index: usize,
         result: SdfResult,
         await_count: usize,
@@ -766,7 +771,7 @@ impl Sdf2Table {
 
         let task_count = Arc::new(AtomicUsize::new(await_count));
         self.draw_font_await(
-            fonts,
+            sheet,
             result.clone(),
             index,
             task_count.clone(),
@@ -801,31 +806,27 @@ impl Sdf2Table {
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_font_await(
         &mut self,
-        fonts: &mut SlotMap<DefaultKey, FontInfo>,
+        sheet: &mut GlyphSheet,
         result: SdfResult,
         index: usize,
         await_count: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
     ) {
-        // let mut await_count = 0;
-
         // 轮廓信息（贝塞尔曲线）
         let mut outline_infos = Vec::with_capacity(await_count.load(Ordering::Relaxed));
-        // let mut outline_infos2: HashMap<DefaultKey, Vec<(char, GlyphId, &str)>> = HashMap::with_capacity(await_count);
         let mut chars = Vec::new();
         let mut keys = Vec::new();
-        // let mut sdf_all_draw_slotmap = Vec::new();
-        // let mut f = Vec::new();
+
         // 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
         if await_count.load(Ordering::Relaxed) != 0 {
-            for (_, font_info) in fonts.iter_mut() {
+            for (_, font_info) in sheet.fonts.iter_mut() {
                 let await_info = &mut font_info.await_info;
                 if await_info.wait_list.len() == 0 {
                     continue;
                 }
 
                 for glyph_id in await_info.wait_list.drain(..) {
-                    let g = &self.glyphs[*glyph_id];
+                    let g = &self.glyphs[glyph_id.0];
                     // font_face_index不存在， 不需要计算
                     if g.font_face_index.is_null() {
                         log::warn!("font_face_index null=============");
@@ -836,7 +837,6 @@ impl Sdf2Table {
                     if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                         let glyph_index = font_face.glyph_index(g.char);
 
-                        // log::error!("{} glyph_index: {}", g.char, glyph_index);
                         // 字体中不存在字符
                         if glyph_index == 0 {
                             await_count.fetch_sub(1, Ordering::Relaxed);
@@ -844,8 +844,8 @@ impl Sdf2Table {
                         }
                         let is_outer_glow = self.font_outer_glow.remove(&glyph_id);
                         let shadow = self.font_shadow.remove(&glyph_id);
-                        // #[cfg(all(not(target_arch="wasm32"), not(feature="empty")))]
-                        // ;
+
+                        let font_name = &sheet.font_names[font_face_id.0];
                         outline_infos.push((
                             self.outline_info.remove(&(font_face_id.0, g.char)).expect(&format!("font_face_id.0: {:?}, g.char: {}, glyph_id: {:?}, self: {:?}, not in outline_info!!!", font_face_id.0, g.char, glyph_id, 1)),
                             font_face_id.0,
@@ -853,11 +853,7 @@ impl Sdf2Table {
                             is_outer_glow,
                             shadow,
                         )); // 先取到贝塞尔曲线
-                        keys.push(format!(
-                            "{}{}",
-                            g.char,
-                            font_info.font.font_family[g.font_face_index].as_str()
-                        ));
+                        keys.push(format!("{}{}", g.char, font_name));
                         chars.push(g.char)
                     }
                 }
@@ -870,7 +866,7 @@ impl Sdf2Table {
         let mut ll = 0;
 
         // let temp_value = async_value.clone();
-
+        // log::error!("================ draw text: {:?}",keys);
         MULTI_MEDIA_RUNTIME
             .spawn(async move {
                 if !INTI_STROE.load(Ordering::Relaxed) {
@@ -888,33 +884,40 @@ impl Sdf2Table {
                     // println!("encode_data_tex===={:?}", index);
                     let await_count = await_count.clone();
                     let char = chars[index];
+                    index += 1;
                     let key = keys[ll].clone();
                     MULTI_MEDIA_RUNTIME
                         .spawn(async move {
-                            let temp_key = key.clone();
-                            let mut hasher = DefaultHasher::new();
-                            key.hash(&mut hasher);
-                            let key = hasher.finish().to_string();
-                            let result_arcs = if let Some(buffer) = stroe::get(key.clone()).await {
+                            let mut crach_info = None;
+
+                            {
+                                let mut sdf_map = SDF_FONT.lock().unwrap();
+                                if sdf_map.is_some()
+                                    && let Some(buffer) = sdf_map.as_mut().unwrap().remove(&key)
+                                {
+                                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                    {
+                                        crach_info = Some(bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap());
+                                    }
+
+                                    #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                    {
+                                        crach_info = Some(buffer);
+                                    }
+                                }
+                            }
+
+                            let result_arcs = if let Some(info) = crach_info {
+                                info
+                            } else if let Some(buffer) = stroe::get(key.clone()).await {
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
-                                    let arcs: CellInfo = bitcode::deserialize(&buffer[..]).unwrap();
-                                    arcs
+                                    bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap()
                                 }
 
                                 #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                                {
-                                    buffer
-                                }
-
-                            // log::trace!("store is have: {}, sdf_tex: {}, atlas_bounds: {:?}", temp_key, sdf_tex.len(), atlas_bounds);
-                            // (char, plane_bounds, atlas_bounds, advance, sdf_tex, tex_size)
+                                buffer
                             } else {
-                                // let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
-
-                                // let data_tex = blod_arc.encode_data_tex1(&map);
-                                // // println!("data_map: {}", map.len());
-                                // let (info, index_tex,sdf_tex1, sdf_tex2, sdf_tex3, sdf_tex4) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
                                     let arcs = glyph_visitor.0.compute_near_arcs(3.0);
@@ -930,6 +933,7 @@ impl Sdf2Table {
                                     buffer
                                 }
                             };
+                            // log::error!("computer char {}, time: {:?}. glyph_id: {:?}", char, time.elapsed(), glyph_visitor.2);
                             let lock = &mut result.0.lock().unwrap().font_result;
                             let mut sdf = glyph_visitor.0.compute_sdf_tex(
                                 result_arcs.clone(),

@@ -37,7 +37,7 @@ impl SvgInfo {
     pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
         let v = computeSvgLayout(&self.binding_box, tex_size, pxrange, cur_off);
 
-        log::error!("computeLayout: {:?}", v);
+        // log::error!("computeLayout: {:?}", v);
         let v = js_sys::Float32Array::from(v).to_vec();
         LayoutInfo {
             plane_bounds: vec![v[0], v[1], v[2], v[3]],

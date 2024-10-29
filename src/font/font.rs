@@ -148,7 +148,7 @@ impl std::ops::DerefMut for FontMgr {
 
 /// 字形表
 pub struct GlyphSheet {
-	font_names: SlotMap<DefaultKey, Atom>,
+	pub font_names: SlotMap<DefaultKey, Atom>,
 	font_names_map: XHashMap<Atom, DefaultKey>,
 
 	fonts_map: XHashMap<Font, FontId>,
@@ -536,6 +536,7 @@ pub const BLOD_WEIGHT: usize = 700;
 // 粗体字的放大因子
 pub const BLOD_FACTOR: f32 = 1.13;
 
+#[derive(Debug)]
 pub struct GlyphIdDesc {
 	pub font_id: FontId,
 	pub char: char,
