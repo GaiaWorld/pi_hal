@@ -11,12 +11,12 @@ use crate::{create_async_value, Arg, LOAD_CB};
 static STORE_INIT_LOCAL_KEY: &'static str = "STORE_INIT_LOCAL_KEY";
 static STORE_GET_KEY: &'static str = "STORE_GET_KEY";
 static STORE_WRITE_KEY: &'static str = "STORE_WRITE_KEY";
-static STORE_DELETE_KEY: &'static str = "STORE_DELETE_KEY";
+static LOAD_FONT_SDF_KEY: &'static str = "LOAD_FONT_SDF_KEY";
 lazy_static! {
-    pub static ref STROE_PATH: RwLock<Option<PathBuf >> = RwLock::new(None);
+    pub static ref STROE_PATH: RwLock<Option<PathBuf>> = RwLock::new(None);
 }
 
-pub async fn init_local_store() {
+pub async fn init_local_store() -> Option<pi_share::Share<Vec<u8>>> {
     let mut hasher = DefaultHasher::new();
     STORE_INIT_LOCAL_KEY.hash(&mut hasher);
     let v = create_async_value("store", "initLocalStore", hasher.finish(), vec![]);
@@ -28,6 +28,14 @@ pub async fn init_local_store() {
             let _ = std::fs::create_dir_all(&path);
             *STROE_PATH.write() = Some(path);
         }
+    }
+
+    let mut hasher = DefaultHasher::new();
+    LOAD_FONT_SDF_KEY.hash(&mut hasher);
+    let v = create_async_value("file", "load_font_sdf", hasher.finish(), vec![]);
+    match v.await {
+        Ok(v) => return Some(v),
+        Err(_) => return None,
     }
 }
 

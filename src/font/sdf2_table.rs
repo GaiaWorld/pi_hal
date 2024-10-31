@@ -138,7 +138,11 @@ impl Sdf2Table {
         let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
             if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
                 IS_FIRST.store(false, Ordering::Relaxed);
-                init_local_store().await;
+                if let Some(buf) = init_local_store().await {
+                    let map: HashMap<String, Vec<u8>> = bitcode::deserialize(&buf).unwrap();
+                    *SDF_FONT.lock().unwrap() = Some(map);
+                }
+
                 log::error!("init_local_store end");
                 INTI_STROE.store(true, Ordering::Relaxed);
                 for v in INTI_STROE_VALUE.lock().unwrap().drain(..) {
@@ -889,15 +893,19 @@ impl Sdf2Table {
                     MULTI_MEDIA_RUNTIME
                         .spawn(async move {
                             let mut crach_info = None;
-
                             {
                                 let mut sdf_map = SDF_FONT.lock().unwrap();
                                 if sdf_map.is_some()
                                     && let Some(buffer) = sdf_map.as_mut().unwrap().remove(&key)
                                 {
-                                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                    #[cfg(all(
+                                        not(target_arch = "wasm32"),
+                                        not(feature = "empty")
+                                    ))]
                                     {
-                                        crach_info = Some(bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap());
+                                        crach_info = Some(
+                                            bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap(),
+                                        );
                                     }
 
                                     #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
@@ -920,7 +928,7 @@ impl Sdf2Table {
                             } else {
                                 #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                 {
-                                    let arcs = glyph_visitor.0.compute_near_arcs(3.0);
+                                    let arcs = glyph_visitor.0.compute_near_arcs(2.0);
                                     let buffer = bitcode::serialize(&arcs).unwrap();
                                     stroe::write(key, buffer).await;
                                     arcs
