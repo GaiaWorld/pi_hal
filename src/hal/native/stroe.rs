@@ -17,26 +17,27 @@ lazy_static! {
 }
 
 pub async fn init_local_store() -> Option<pi_share::Share<Vec<u8>>> {
-    let mut hasher = DefaultHasher::new();
-    STORE_INIT_LOCAL_KEY.hash(&mut hasher);
-    let v = create_async_value("store", "initLocalStore", hasher.finish(), vec![]);
+    // let mut hasher = DefaultHasher::new();
+    // STORE_INIT_LOCAL_KEY.hash(&mut hasher);
+    // let v = create_async_value("store", "initLocalStore", hasher.finish(), vec![]);
 
-    if let Ok(byte) = v.await {
-        if let Ok(path) = String::from_utf8(byte.to_vec()) {
-            let path = PathBuf::from_str(&path).unwrap();
-            let path = path.join("sdf_font");
-            let _ = std::fs::create_dir_all(&path);
-            *STROE_PATH.write() = Some(path);
-        }
-    }
+    // if let Ok(byte) = v.await {
+    //     if let Ok(path) = String::from_utf8(byte.to_vec()) {
+    //         let path = PathBuf::from_str(&path).unwrap();
+    //         let path = path.join("sdf_font");
+    //         let _ = std::fs::create_dir_all(&path);
+    //         *STROE_PATH.write() = Some(path);
+    //     }
+    // }
 
-    let mut hasher = DefaultHasher::new();
-    LOAD_FONT_SDF_KEY.hash(&mut hasher);
-    let v = create_async_value("file", "load_font_sdf", hasher.finish(), vec![]);
-    match v.await {
-        Ok(v) => return Some(v),
-        Err(_) => return None,
-    }
+    // let mut hasher = DefaultHasher::new();
+    // LOAD_FONT_SDF_KEY.hash(&mut hasher);
+    // let v = create_async_value("file", "load_font_sdf", hasher.finish(), vec![]);
+    // match v.await {
+    //     Ok(v) => return Some(v),
+    //     Err(_) => return None,
+    // }
+    None
 }
 
 /**
@@ -44,14 +45,14 @@ pub async fn init_local_store() -> Option<pi_share::Share<Vec<u8>>> {
  */
 pub async fn get(key: String) -> Option<Vec<u8>> {
     // println!("init_local_store get key: {}", key);
-    if let Some(path) = STROE_PATH.read().as_ref() {
-        let path = path.join(key);
-        // println!("init_local_store get222 key: {:?}", path);
-        if let Ok(data) = std::fs::read(path) {
-            // println!("init_local_store get333 key: {:?}", data.len());
-            return Some(data);
-        }
-    }
+    // if let Some(path) = STROE_PATH.read().as_ref() {
+    //     let path = path.join(key);
+    //     // println!("init_local_store get222 key: {:?}", path);
+    //     if let Ok(data) = std::fs::read(path) {
+    //         // println!("init_local_store get333 key: {:?}", data.len());
+    //         return Some(data);
+    //     }
+    // }
     None
 }
 
@@ -60,11 +61,11 @@ pub async fn get(key: String) -> Option<Vec<u8>> {
  */
 pub async fn write(key: String, data: Vec<u8>) {
     // println!("init_local_store write key: {}", key);
-    if let Some(path) = STROE_PATH.read().as_ref() {
-        let path = path.join(key);
-        // println!("init_local_store write222 key: {:?}", path);
-        let _ = std::fs::write(path, data);
-    }
+    // if let Some(path) = STROE_PATH.read().as_ref() {
+    //     let path = path.join(key);
+    //     // println!("init_local_store write222 key: {:?}", path);
+    //     let _ = std::fs::write(path, data);
+    // }
 }
 
 /**
@@ -72,8 +73,8 @@ pub async fn write(key: String, data: Vec<u8>) {
  */
 pub async fn delete_key(key: String) {
     // println!("init_local_store delete_key: {}", key);
-    if let Some(path) = STROE_PATH.read().as_ref() {
-        let path = path.join(key);
-        let _ = std::fs::remove_file(path);
-    }
+    // if let Some(path) = STROE_PATH.read().as_ref() {
+    //     let path = path.join(key);
+    //     let _ = std::fs::remove_file(path);
+    // }
 }
