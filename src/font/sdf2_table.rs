@@ -1482,7 +1482,7 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
     let r = AsyncValue::new();
     let k = lock.insert(r.clone());
     if let Some(cb) = LOAD_CB_SDF.0.get() {
-        cb(k, font.str_hash(), chars);
+        cb(k, font.str_hash() as usize, chars);
     } else {
     }
     r
