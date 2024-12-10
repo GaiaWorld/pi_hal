@@ -4,9 +4,8 @@ pub use image::{ImageError, error::{DecodingError, ImageFormatHint}};
 use pi_atom::Atom;
 use pi_wgpu::Texture;
 use pi_wgpu as wgpu;
-use pi_wgpu::{ImageCopyExternalImage, ExternalImageSource, PredefinedColorSpace};
-// use pi_wgpu::TextureDataOrder;
-// use pi_wgpu::util::DeviceExt;
+use pi_wgpu::{ImageCopyExternalImage, ExternalImageSource, PredefinedColorSpace, TextureDataOrder};
+use pi_wgpu::util::DeviceExt;
 use crate::{loadKtx, loadImage, hasAtom, setAtom};
 use crate::texture::{convert_format, ImageTexture, PiDefaultTextureFormat, KTX_SUFF, view_dimension, depth_or_array_layers, dimension, ImageTextureDesc};
 
@@ -58,17 +57,16 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
 		usage: desc.useage,
 		view_formats: &[],
 	});
-	// todo!();
 
-	// queue.copy_external_image_to_texture(
-	// 	&ImageCopyExternalImage{
-	// 		source: ExternalImageSource::HTMLImageElement(image),
-	// 		origin: wgpu::Origin2d::ZERO,
-	// 		flip_y: false,
-	// 	},
-	// 	texture.as_image_copy().to_tagged(PredefinedColorSpace::DisplayP3, false),
-	// 	texture_extent,
-	// );
+	queue.copy_external_image_to_texture(
+		&ImageCopyExternalImage{
+			source: ExternalImageSource::HTMLImageElement(image),
+			origin: wgpu::Origin2d::ZERO,
+			flip_y: false,
+		},
+		texture.as_image_copy().to_tagged(PredefinedColorSpace::DisplayP3, false),
+		texture_extent,
+	);
 
     Ok(ImageTexture {
         texture, is_opacity,
@@ -115,27 +113,26 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 			
 
 			log::debug!("create_texture_from_ktx, width====={:?}, height==={:?}", texture_extent.width, texture_extent.height);
-			todo!();
 
-			// let texture = device.create_compress_texture_with_data_jsdata(queue, &wgpu::TextureDescriptor {
-			// 	label: Some("ktx texture"),
-			// 	size: texture_extent,
-			// 	mip_level_count: mipmap_count,
-			// 	sample_count: 1,
-			// 	dimension: dimension(height, depth),
-			// 	format,
-			// 	usage: desc.useage,
-			// 	view_formats: &[],
-			// }, TextureDataOrder::MipMajor, buffers.as_slice());
+			let texture = device.create_compress_texture_with_data_jsdata(queue, &wgpu::TextureDescriptor {
+				label: Some("ktx texture"),
+				size: texture_extent,
+				mip_level_count: mipmap_count,
+				sample_count: 1,
+				dimension: dimension(height, depth),
+				format,
+				usage: desc.useage,
+				view_formats: &[],
+			}, TextureDataOrder::MipMajor, buffers.as_slice());
 
 		
 		
-			// return Ok(ImageTexture {
-			// 	texture, is_opacity: true/*TODO*/,
-			// 	width, height, format,
-			// 	size: len,
-			// 	view_dimension: view_dimension(layer_count, face_count, depth),
-			// })
+			return Ok(ImageTexture {
+				texture, is_opacity: true/*TODO*/,
+				width, height, format,
+				size: len,
+				view_dimension: view_dimension(layer_count, face_count, depth),
+			})
 		},
 		Err(e) => return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("{:?}", e))))
 	}
