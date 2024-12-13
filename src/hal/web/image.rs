@@ -1,4 +1,5 @@
 use std::io::ErrorKind;
+use std::mem::transmute;
 
 pub use image::{DynamicImage, ImageBuffer, ImageError};
 use pi_atom::Atom;
@@ -14,12 +15,12 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 	// 	false
 	// };
 	
-	let id = path.str_hash() as u32;
+	let id = unsafe {transmute::<_, f64>(path.str_hash())};
 	if hasAtom(id) == false {
 		setAtom(id, path.to_string());
 	}
 
-	match loadImageAsCanvas(path.str_hash() as u32).await {
+	match loadImageAsCanvas(id).await {
 		Ok(r) => {
 			let ctx = web_sys::CanvasRenderingContext2d::from(r);
 			let canvas = ctx.canvas().unwrap();

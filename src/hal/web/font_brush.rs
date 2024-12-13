@@ -55,7 +55,7 @@ impl Brush {
     pub fn base_height(&mut self, font: &FontInfo) -> f32 {
         let font = &mut self.fonts[*font.font_family_id];
         getGlobalMetricsHeight(
-            font.font_family_string.str_hash() as u32,
+            unsafe { transmute(font.font_family_string.str_hash()) },
             BASE_FONT_SIZE as f32,
         ) as f32
     }
@@ -75,7 +75,7 @@ impl Brush {
                 &self.ctx,
                 ch_code,
                 BASE_FONT_SIZE as u32,
-                font.font_family_string.str_hash() as u32,
+                unsafe { transmute(font.font_family_string.str_hash()) },
             ),
             0, /*在web上，font face索引并不重要*/
         )
@@ -134,7 +134,7 @@ fn draw_sync(
         ctx,
         font.font_weight as u32,
         font.font_size as u32,
-        font.font_family_string.str_hash() as u32,
+        unsafe { transmute(font.font_family_string.str_hash()) },
         stroke as u8,
     );
     if stroke > 0.0 {
