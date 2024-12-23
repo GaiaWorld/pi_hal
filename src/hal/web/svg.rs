@@ -5,7 +5,7 @@ use super::{
 use crate::hal::web::font_brush::SdfInfo2;
 use crate::{
     createCircle, createEllipse, createPath, createPolygon, createPolyline, createRect,
-    createSegment, createSvgInfo, free, getSvgInfo,
+    createSegment, createSvgInfo, free, getSvgInfo,computeSdfCellOfWasm
 };
 use parry2d::bounding_volume::Aabb;
 use wasm_bindgen::JsValue;
@@ -15,7 +15,8 @@ use wasm_bindgen::JsValue;
 #[derive(Debug, Clone)]
 pub struct SvgInfo {
     buf: Vec<u8>,
-    binding_box: Vec<f32>,
+    pub binding_box: Vec<f32>,
+    pub is_area: bool,
 }
 
 impl SvgInfo {
@@ -31,7 +32,7 @@ impl SvgInfo {
 
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let buf = js_sys::Uint8Array::from(buf).to_vec();
-        Self { binding_box, buf }
+        Self { binding_box, buf , is_area}
     }
 
     pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
@@ -62,6 +63,12 @@ impl SvgInfo {
         let bytes = js_sys::Uint8Array::from(js_value).to_vec();
         bitcode::deserialize(&bytes).unwrap()
     }
+
+    pub fn compute_sdf_cell(&self, scale: f32,) -> SdfInfo {
+        let js_value = computeSdfCellOfWasm(self.buf.clone(), scale);
+        let bytes = js_sys::Uint8Array::from(js_value).to_vec();
+        bitcode::deserialize(&bytes).unwrap()
+    }
 }
 
 impl Drop for SvgInfo {
@@ -78,12 +85,14 @@ impl Rect {
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
-        let info = getSvgInfo(self.0.clone());
+        let info = unsafe { getSvgInfo(self.0.clone()) };
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -105,9 +114,12 @@ impl Circle {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -129,9 +141,11 @@ impl Ellipse {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -145,17 +159,19 @@ impl Drop for Ellipse {
 pub struct Segment(JsValue);
 
 impl Segment {
-    pub fn new(ax: f32, ay: f32, bx: f32, by: f32) -> Self {
-        Self(createSegment(ax, ay, bx, by))
+    pub fn new(ax: f32, ay: f32, bx: f32, by: f32, step: Option<Vec<f32>>) -> Self {
+        Self(createSegment(ax, ay, bx, by, step))
     }
 
     pub fn get_svg_info(&self) -> SvgInfo {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -177,9 +193,11 @@ impl Polygon {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -201,9 +219,11 @@ impl Polyline {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }
@@ -255,9 +275,11 @@ impl Path {
         let info = getSvgInfo(self.0.clone());
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
+            is_area: is_area.as_bool().unwrap()
         }
     }
 }

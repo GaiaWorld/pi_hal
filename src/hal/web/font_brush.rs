@@ -231,7 +231,7 @@ pub struct TexInfo2 {
     pub atlas_max_x: f32,
     pub atlas_max_y: f32,
 }
-
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct LayoutInfo {
     pub plane_bounds: Vec<f32>,
     pub atlas_bounds: Vec<f32>,

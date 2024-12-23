@@ -1,5 +1,7 @@
 
 
+use pi_share::Share;
+use pi_wgpu as wgpu;
 use super::{bitmap_table::BitmapTable, font::{FontFaceId, FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}};
 
 pub struct FontTable {
@@ -14,11 +16,11 @@ pub struct FontTable {
 
 impl FontTable {
 	/// 创建字体表
-	pub fn new(width: usize, height: usize) -> Self {
+	pub fn new(width: usize, height: usize, device: Share<wgpu::Device>, queue: Share<wgpu::Queue>) -> Self {
 		Self {
 			bitmap_table: BitmapTable::new(width, height),
 			sdf_table: SdfTable::new(width, height),
-			sdf2_table: Sdf2Table::new(width, height),
+			sdf2_table: Sdf2Table::new(width, height, device, queue),
 		}
 	}
 

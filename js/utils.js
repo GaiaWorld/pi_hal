@@ -176,4 +176,4 @@ export function free(obj){}
 export function loadFontSdf() {
 	return Promise.resolve(new Uint8Array(0))
 }
-
+export function computeSdfCellOfWasm(info, scale){}

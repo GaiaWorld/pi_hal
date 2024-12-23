@@ -9,6 +9,7 @@ use pi_hash::XHashMap;
 use pi_null::Null;
 // use pi_sdf::utils::compute_layout;
 use crate::font_brush::OutlineInfo;
+use pi_wgpu as wgpu;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 /// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
@@ -23,11 +24,10 @@ use std::{
         Arc, Mutex, OnceLock,
     },
 };
-
 #[derive(Default, Debug)]
 pub struct SdfResultInner {
     pub font_result: Vec<(DefaultKey, SdfInfo2, SdfType)>,
-    pub svg_result: Vec<(u64, SdfInfo2, SdfType)>,
+    pub svg_result: Vec<(u64, Option<SdfInfo2>, SdfType)>,
     pub box_result: Vec<(u64, BoxInfo, Vec<u8>)>,
 }
 
@@ -42,6 +42,8 @@ use pi_slotmap::{DefaultKey, SecondaryMap, SlotMap};
 use super::blur::compute_box_layout;
 use super::blur::BoxInfo;
 use super::font::GlyphSheet;
+use super::sdf_gpu::GPUState;
+// use super::sdf_gpu::gpu_draw;
 use super::{
     blur::{blur_box, gaussian_blur},
     font::{
@@ -116,6 +118,7 @@ pub struct Sdf2Table {
     pub shapes_shadow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
     // svg 外发光sdf纹理数据信息
     pub shapes_outer_glow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
+    pub gpu: GPUState
 }
 
 #[derive(Debug)]
@@ -131,10 +134,11 @@ pub struct SvgTexInfo {
     pub y: f32,
     pub width: usize,
     pub height: usize,
+    layout: LayoutInfo,
 }
 
 impl Sdf2Table {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, device: Share<wgpu::Device>, queue: Share<wgpu::Queue>,) -> Self {
         let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
             if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
                 IS_FIRST.store(false, Ordering::Relaxed);
@@ -178,6 +182,7 @@ impl Sdf2Table {
             shapes_outer_glow: XHashMap::default(),
             shapes_shadow_tex_info: XHashMap::default(),
             shapes_outer_glow_tex_info: XHashMap::default(),
+            gpu: GPUState::init(device, queue),
             // texs: XHashMap::default(),
         }
     }
@@ -510,6 +515,7 @@ impl Sdf2Table {
                 y: index_position.y as f32 + info.atlas_bounds.mins.y,
                 width: (info.atlas_bounds.maxs.x - info.atlas_bounds.mins.x) as usize,
                 height: (info.atlas_bounds.maxs.y - info.atlas_bounds.mins.y) as usize,
+                layout: LayoutInfo::default(),
             },
         );
         hash
@@ -552,6 +558,7 @@ impl Sdf2Table {
                 y: index_position.y as f32 + info2.atlas_bounds[1],
                 width: (info2.atlas_bounds[2] - info2.atlas_bounds[0]) as usize,
                 height: (info2.atlas_bounds[3] - info2.atlas_bounds[1]) as usize,
+                layout: info2,
             },
         );
         self.shapes.insert(hash, (info, tex_size, pxrang, cut_off));
@@ -575,6 +582,7 @@ impl Sdf2Table {
                         y: index_position.y as f32 + info.atlas_bounds[1],
                         width: (info.atlas_bounds[2] - info.atlas_bounds[0]) as usize,
                         height: (info.atlas_bounds[3] - info.atlas_bounds[1]) as usize,
+                        layout: info,
                     },
                 );
             }
@@ -605,6 +613,7 @@ impl Sdf2Table {
                         y: index_position.y as f32 + info.atlas_bounds[1],
                         width: (info.atlas_bounds[2] - info.atlas_bounds[0]) as usize,
                         height: (info.atlas_bounds[3] - info.atlas_bounds[1]) as usize,
+                        layout: info,
                     },
                 );
             }
@@ -625,140 +634,10 @@ impl Sdf2Table {
         &self.glyphs[id.0].glyph
     }
 
-    // /// 更新字形信息（计算圆弧信息）
-    // /// 通过回调函数更新
-    // pub fn update<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(&mut self, fonts: &mut SlotMap<DefaultKey, FontInfo>, mut update: F) {
-
-    // 	let mut await_count = 0;
-    // 	for (_, font_info) in fonts.iter() {
-    // 		await_count += font_info.await_info.wait_list.len();
-    // 	}
-
-    // 	// 轮廓信息（贝塞尔曲线）
-    // 	let mut outline_infos = Vec::with_capacity(await_count);
-
-    // 	// let mut sdf_all_draw_slotmap = Vec::new();
-    // 	// let mut f = Vec::new();
-    // 	// 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
-    // 	for (_, font_info) in fonts.iter_mut() {
-    // 		let await_info = &mut font_info.await_info;
-    // 		if await_info.wait_list.len() == 0 {
-    // 			continue;
-    // 		}
-
-    // 		for glyph_id in await_info.wait_list.drain(..) {
-    // 			let g = &self.glyphs[*glyph_id];
-    // 			let font_face_id = font_info.font_ids[g.font_face_index];
-    // 			outline_infos.push((self.fonts[font_face_id.0].to_outline(g.char), font_face_id.0, glyph_id)); // 先取到贝塞尔曲线
-    // 		}
-    // 	}
-
-    // 	let texture_data = Vec::with_capacity(await_count);
-    // 	let result = Share::new(ShareMutex::new((0, texture_data)));
-    // 	let async_value = AsyncValue::new();
-
-    // 	let max_boxs: &'static SecondaryMap<DefaultKey,  parry2d::bounding_volume::Aabb> = unsafe { transmute(&self.max_boxs) };
-    // 	// 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-    // 	for glyph_visitor in outline_infos.drain(..) {
-    // 		let async_value1 = async_value.clone();
-    // 		let result1 = result.clone();
-    // 		MULTI_MEDIA_RUNTIME.spawn(async move {
-    // 			let (mut blod_arc, map) = FontFace::get_char_arc(max_boxs[glyph_visitor.1].clone(), glyph_visitor.0);
-
-    // 			log::trace!("encode_data_tex======{:?}, {:?}", blod_arc.grid_size(), map);
-    // 			let data_tex = blod_arc.encode_data_tex1(&map);
-    // 			// println!("data_map: {}", map.len());
-    // 			let (info, index_tex) = blod_arc.encode_index_tex1( map, data_tex.len() / 4);
-
-    // 			// log::debug!("load========={:?}, {:?}", lock.0, len);
-    // 			let mut lock = result1.lock();
-    // 			lock.1.push((glyph_visitor.1, info, data_tex, index_tex));
-    // 			lock.0 += 1;
-    // 			if lock.0 == await_count {
-    // 				async_value1.set(true);
-    // 			}
-    // 		}).unwrap();
-    // 	}
-
-    // 	let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer)};
-    // 	let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
-    // 	let glyphs: &'static mut SlotMap<DefaultKey, GlyphIdDesc> = unsafe { transmute(&mut self.glyphs)};
-
-    // 	MULTI_MEDIA_RUNTIME.spawn(async move {
-    // 		log::debug!("sdf2 load1=========");
-    // 		async_value.await;
-    // 		let mut lock = result.lock();
-    // 		let r = &mut lock.1;
-    // 		log::debug!("sdf2 load2========={:?}", r.len());
-
-    // 		while let Some((glyph_id, mut text_info, mut data_tex, index_tex)) = r.pop() {
-    // 			// 索引纹理更新
-    // 			let index_tex_position = index_packer.alloc(
-    // 			text_info.grid_w as usize,
-    // 			text_info.grid_h as usize);
-    // 			let index_position = match index_tex_position {
-    // 				Some(r) => r,
-    // 				None => panic!("aaaa================"),
-    // 			};
-    // 			let index_img = FontImage {
-    // 				width: text_info.grid_w as usize,
-    // 				height: text_info.grid_h as usize,
-    // 				buffer: index_tex,
-    // 			};
-    // 			text_info.index_offset = (index_position.x, index_position.y);
-    // 			let index_block = Block {
-    // 				y: index_position.x as f32,
-    // 				x: index_position.y as f32,
-    // 				width: index_img.width as f32,
-    // 				height: index_img.height as f32,
-    // 			};
-    // 			// log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
-    // 			(update.clone())(index_block, index_img);
-
-    // 			// 数据纹理更新
-    // 			let data_len = data_tex.len() / 4;
-    // 			let mut patch = 8.0 - data_len as f32 % 8.0;
-    // 			let p1 = patch;
-    // 			while patch > 0.0 {
-    // 				data_tex.extend_from_slice(&[0, 0, 0, 0]); // 补0
-    // 				patch -= 1.0;
-    // 			}
-
-    // 			let h = (data_len as f32 / 8.0).ceil() as usize;
-    // 			let data_img = FontImage {
-    // 				width: 8,
-    // 				height: h,
-    // 				buffer: data_tex,
-    // 			};
-    // 			let data_position = data_packer.alloc(
-    // 				text_info.grid_w as usize,
-    // 				text_info.grid_h as usize);
-    // 			let data_position = match data_position {
-    // 				Some(r) => r,
-    // 				None => panic!("bbb================"),
-    // 			};
-    // 			text_info.data_offset = (data_position.x, data_position.y);
-    // 			let data_block = Block {
-    // 				y: data_position.x as f32,
-    // 				x: data_position.y as f32,
-    // 				width: data_img.width as f32,
-    // 				height: data_img.height as f32,
-    // 			};
-    // 			// log::warn!("update data tex========={:?}", (&data_block, data_img.width, data_img.height, data_img.buffer.len(), data_len, p1) );
-    // 			update(data_block, data_img);
-
-    // 			glyphs[glyph_id].glyph = text_info;
-
-    // 			log::warn!("text_info=========={:?}, {:?}", glyph_id, glyphs[glyph_id].glyph);
-
-    // 		}
-    // 	}).unwrap();
-
-    // }
-
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_await(
         &mut self,
+        texture: Share<wgpu::Texture>,
         sheet: &mut GlyphSheet,
         index: usize,
         result: SdfResult,
@@ -781,7 +660,12 @@ impl Sdf2Table {
             task_count.clone(),
             async_value.clone(),
         );
-        self.draw_svg_await(result.clone(), task_count.clone(), async_value.clone());
+        self.draw_svg_await(
+            texture,
+            result.clone(),
+            task_count.clone(),
+            async_value.clone(),
+        );
         self.draw_box_shadow_await(result.clone(), task_count.clone(), async_value.clone());
 
         async_value
@@ -1003,18 +887,12 @@ impl Sdf2Table {
                                 }
                             }
 
-                            // log::debug!("load========={:?}, {:?}", lock.0, len);
-                            // let mut lock = result1.lock().unwrap();
-                            // println!("encode_data_tex0===={:?}", (index, ll));
                             // log::trace!("encode_data_tex======cur_count: {:?}, atlas_bounds={:?}, await_count={:?}, tex_size={:?}", lock.0, atlas_bounds, await_count, tex_size);
-                            // lock.1.push((glyph_visitor.2 .0, sdf));
                             let r = await_count.fetch_sub(1, Ordering::Relaxed);
                             // log::warn!("r1============{:?}", r);
                             if r == 1 {
                                 log::trace!("encode_data_tex1");
                                 async_value1.set(());
-                                // println!("encode_data_tex1===={}", index);
-                                log::trace!("encode_data_tex2");
                             }
                         })
                         .unwrap();
@@ -1042,8 +920,6 @@ impl Sdf2Table {
         // mut updtae_shadow: F1,
         result: &mut Vec<(DefaultKey, SdfInfo2, SdfType)>,
     ) {
-        // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
-        // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer)};
         let glyphs = &mut self.glyphs;
 
         // let mut lock = result.lock().unwrap();
@@ -1060,13 +936,6 @@ impl Sdf2Table {
             sdf_type,
         )) = r.pop()
         {
-            // let r =
-            // 索引纹理更新
-            // let tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
-            // let sdf_position = match tex_position {
-            //     Some(r) => r,
-            //     None => panic!("aaaa================"),
-            // };
             let sdf_img = FontImage {
                 width: tex_size as usize,
                 height: tex_size as usize,
@@ -1083,10 +952,7 @@ impl Sdf2Table {
                     .get(&(GlyphId(glyph_id), radius))
                     .unwrap(),
             };
-            // let index_offset_x = sdf_position.x as f32 + tex_info.atlas_min_x ;
-            // let index_offset_y = sdf_position.y as f32 + tex_info.atlas_min_y;
-            // tex_info.sdf_offset_x = glyph.x -  tex_info.atlas_min_x ;
-            // tex_info.sdf_offset_x = glyph.y -  tex_info.atlas_min_y ;;
+
             let sdf_block = Block {
                 x: glyph.x - tex_info.atlas_min_x as f32,
                 y: glyph.y - tex_info.atlas_min_y as f32,
@@ -1095,50 +961,12 @@ impl Sdf2Table {
             };
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(sdf_block, sdf_img);
-
-            // let advance = glyphs[glyph_id].glyph.advance;
-            // let glyph = Glyph {
-            //     ox: tex_info.plane_min_x,
-            //     oy: tex_info.plane_min_y,
-            //     x: tex_info.sdf_offset_x as f32 + tex_info.atlas_min_x,
-            //     y: tex_info.sdf_offset_y as f32 + tex_info.atlas_min_y,
-            //     width: tex_info.atlas_max_x - tex_info.atlas_min_x,
-            //     height: tex_info.atlas_max_y - tex_info.atlas_min_y,
-            //     advance,
-            // };
-            // match sdf_type {
-            //     SdfType::Normal => {
-            //         // glyphs[glyph_id].glyph = glyph;
-            //     }
-            //     SdfType::Shadow(range, weight) => {
-            //         // self.font_shadow_info
-            //         //     .insert((GlyphId(glyph_id), range, weight), glyph);
-            //     }
-            //     SdfType::OuterGlow(range) => {
-            //         // self.font_outer_glow_info
-            //         //     .insert((GlyphId(glyph_id), range), glyph);
-            //     }
-            // }
-
-            // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
     }
 
     pub fn has_box_shadow(&mut self, hash: u64) -> bool {
         self.shapes_tex_info.get(&hash).is_some()
     }
-
-    // pub fn allow_tex(&mut self, hash: u64, width: usize, height: usize) -> (usize, usize) {
-    //     let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
-    //     let index_tex_position = index_packer.alloc(width as usize, height as usize);
-    //     match index_tex_position {
-    //         Some(r) => {
-    //             self.texs.insert(hash, r);
-    //             (r.x, r.y)
-    //         }
-    //         None => panic!("aaaa================"),
-    //     }
-    // }
 
     /// 更新字形信息（计算圆弧信息）
     pub fn draw_box_shadow_await(
@@ -1191,11 +1019,6 @@ impl Sdf2Table {
         update: F,
         result: &mut Vec<(u64, BoxInfo, Vec<u8>)>,
     ) {
-        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
-        // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
-        // let shapes: &'static mut XHashMap<u64, TexInfo2> =
-        //     unsafe { transmute(&mut self.shapes_tex_info) };
-
         // let mut lock = result.lock().unwrap();
         let r = result;
         log::debug!("sdf2 load2========={:?}", r.len());
@@ -1221,18 +1044,6 @@ impl Sdf2Table {
             };
             // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
             (update.clone())(index_block, index_img);
-
-            // if !is_have {
-            //     let mut tex_info = SvgTexInfo::default();
-
-            //     tex_info.x = index_position.x + box_info.atlas_bounds.mins.x;
-            //     tex_info.y = index_position.y + box_info.atlas_bounds.mins.y;
-            //     tex_info.width = box_info.p_w as usize;
-            //     tex_info.height = box_info.p_h as usize;
-
-            //     self.shapes_shadow_tex_info.insert((hash, 0), tex_info);
-            // }
-            // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
         }
     }
 
@@ -1247,75 +1058,96 @@ impl Sdf2Table {
     /// 更新svg信息（计算圆弧信息）
     pub fn draw_svg_await(
         &mut self,
+        texture: Share<wgpu::Texture>,
         result: SdfResult,
         await_count: Arc<AtomicUsize>,
         async_value: AsyncValue<()>,
     ) {
-        // let texture_data = Vec::with_capacity(await_count);
-        // result.lock().unwrap().1.reserve(await_count);
-        // let result: Arc<ShareMutex<(usize, Vec<(u64, SdfInfo2)>)>> =
-        //     Share::new(ShareMutex::new((0, texture_data)));
-        // let async_value = AsyncValue::new();
-
         let mut shapes = self.shapes.clone();
         self.shapes.clear();
         let mut shapes_outer_glow = self.shapes_outer_glow.clone();
         self.shapes_outer_glow.clear();
         let mut shapes_shadow = self.shapes_shadow.clone();
         self.shapes_shadow.clear();
-        MULTI_MEDIA_RUNTIME
-            .spawn(async move {
-                if !INTI_STROE.load(Ordering::Relaxed) {
-                    // log::error!("=============存储未初始化");
-                    let async_value3 = AsyncValue::new();
-                    INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
-                    async_value3.await;
+        let shapes_tex_info = self.shapes_tex_info.clone();
+
+        // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+        for (hash, (info, size, pxrange, cur_off)) in shapes.drain() {
+            let outer_glow = shapes_outer_glow.remove(&hash);
+            let shadow = shapes_shadow.remove(&hash);
+
+            let async_value1 = async_value.clone();
+            let result1 = result.clone();
+            let await_count = await_count.clone();
+
+            if size > 256 {
+                let index_position = shapes_tex_info.get(&hash).unwrap().clone();
+                let tex_offset = (
+                    (index_position.x - index_position.layout.atlas_bounds[0]) as u32,
+                    (index_position.y - index_position.layout.atlas_bounds[1]) as u32,
+                );
+                let scale = 1.0;
+                self.gpu.draw(
+                    &texture,
+                    info,
+                    tex_offset,
+                    size as u32,
+                    pxrange as f32,
+                    cur_off,
+                    scale
+                );
+                {
+                    let lock = &mut result1.0.lock().unwrap().svg_result;
+                    lock.push((hash, None, SdfType::Normal));
                 }
-                // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-                for (hash, (info, size, pxrange, cur_off)) in shapes.drain() {
-                    let outer_glow = shapes_outer_glow.remove(&hash);
-                    let shadow = shapes_shadow.remove(&hash);
+                
+                if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                    log::trace!("encode_data_tex1");
+                    async_value1.set(());
+                    log::trace!("encode_data_tex2");
+                }
+            } else {
+                MULTI_MEDIA_RUNTIME
+                    .spawn(async move {
+                        if !INTI_STROE.load(Ordering::Relaxed) {
+                            // log::error!("=============存储未初始化");
+                            let async_value3 = AsyncValue::new();
+                            INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                            async_value3.await;
+                        }
 
-                    let async_value1 = async_value.clone();
-                    let result1 = result.clone();
+                        #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                        let sdfinfo =
+                            Some(info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0));
 
-                    let await_count = await_count.clone();
-                    MULTI_MEDIA_RUNTIME
-                        .spawn(async move {
-                            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
-                            let sdfinfo = info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0);
+                        #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                        let sdfinfo = Some(info
+                            .compute_sdf_tex(size, pxrange, false, cur_off, 1.0)
+                            .await);
 
-                            #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                            let sdfinfo = info
-                                .compute_sdf_tex(size, pxrange, false, cur_off, 1.0)
-                                .await;
+                        {
+                            let lock = &mut result1.0.lock().unwrap().svg_result;
+                            lock.push((hash, sdfinfo.clone(), SdfType::Normal));
+                        }
+                        if let Some(outer_glow) = outer_glow {
+                            for v in outer_glow {
+                                // let sdfinfo = info.compute_sdf_tex( size, v, true, v / 2, 1.0).await;
+                                #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0);
+                                #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0).await;
+                                let lock2 = &mut result1.0.lock().unwrap().svg_result;
+                                lock2.push((hash, Some(sdfinfo), SdfType::OuterGlow(v)));
+                            }
+                        }
 
+                        if let Some(shadow) = shadow {
+                            if let Some(SdfInfo2 {
+                                tex_info,
+                                sdf_tex,
+                                tex_size,
+                            }) = sdfinfo
                             {
-                                let lock = &mut result1.0.lock().unwrap().svg_result;
-                                lock.push((hash, sdfinfo.clone(), SdfType::Normal));
-                            }
-                            if let Some(outer_glow) = outer_glow {
-                                for v in outer_glow {
-                                    // let sdfinfo = info.compute_sdf_tex( size, v, true, v / 2, 1.0).await;
-                                    #[cfg(all(
-                                        not(target_arch = "wasm32"),
-                                        not(feature = "empty")
-                                    ))]
-                                    let sdfinfo = info.compute_sdf_tex(size, v, true, v / 2, 1.0);
-                                    #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                                    let sdfinfo =
-                                        info.compute_sdf_tex(size, v, true, v / 2, 1.0).await;
-                                    let lock2 = &mut result1.0.lock().unwrap().svg_result;
-                                    lock2.push((hash, sdfinfo, SdfType::OuterGlow(v)));
-                                }
-                            }
-
-                            if let Some(shadow) = shadow {
-                                let SdfInfo2 {
-                                    tex_info,
-                                    sdf_tex,
-                                    tex_size,
-                                } = sdfinfo;
                                 let lock1 = &mut result1.0.lock().unwrap().svg_result;
                                 for shadow_range in shadow {
                                     let sdf_tex = gaussian_blur(
@@ -1327,99 +1159,62 @@ impl Sdf2Table {
                                     );
                                     lock1.push((
                                         hash,
-                                        SdfInfo2 {
+                                        Some(SdfInfo2 {
                                             tex_info: tex_info.clone(),
                                             sdf_tex,
                                             tex_size,
-                                        },
+                                        }),
                                         SdfType::Shadow(shadow_range, NotNan::new(0.0).unwrap()),
                                     ));
                                 }
                             }
+                        }
 
-                            // log::debug!("load========={:?}, {:?}", lock.0, len);
-
-                            // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
-
-                            if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
-                                log::trace!("encode_data_tex1");
-                                async_value1.set(());
-                                log::trace!("encode_data_tex2");
-                            }
-                        })
-                        .unwrap();
-                }
-            })
-            .unwrap();
+                        if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                            log::trace!("encode_data_tex1");
+                            async_value1.set(());
+                            log::trace!("encode_data_tex2");
+                        }
+                    })
+                    .unwrap();
+            }
+        }
     }
 
     pub fn update_svg<F: FnMut(Block, FontImage) + Clone + 'static>(
         &mut self,
         update: F,
-        result: &mut Vec<(u64, SdfInfo2, SdfType)>,
+        result: &mut Vec<(u64, Option<SdfInfo2>, SdfType)>,
     ) {
-        let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
-        // let data_packer: &'static mut TextPacker = unsafe { transmute(&mut self.data_packer) };
-        // let shapes: &'static mut XHashMap<u64, TexInfo2> =
-        //     unsafe { transmute(&mut self.shapes_tex_info) };
-
         // let mut lock = result.lock().unwrap();
         let r = result;
         log::debug!("sdf2 load2========={:?}", r.len());
 
-        while let Some((
-            hash,
-            SdfInfo2 {
+        while let Some((hash, info, svg_type)) = r.pop() {
+            if let Some(SdfInfo2 {
                 tex_info,
                 sdf_tex,
                 tex_size,
-            },
-            svg_type,
-        )) = r.pop()
-        {
-            let mut is_have = false;
-            let index_position = self.shapes_tex_info.get(&hash).unwrap();
+            }) = info
+            {
+                let index_position = self.shapes_tex_info.get(&hash).unwrap();
 
-            // // 索引纹理更新
-            // let index_tex_position = index_packer.alloc(tex_size as usize, tex_size as usize);
-            // let index_position = match index_tex_position {
-            //     Some(r) => r,
-            //     None => panic!("aaaa================"),
-            // };
-            let index_img = FontImage {
-                width: tex_size as usize,
-                height: tex_size as usize,
-                buffer: sdf_tex,
-            };
-            // tex_info.sdf_offset_x = index_position.x;
-            // tex_info.sdf_offset_x = index_position.y;
-            let index_block = Block {
-                x: index_position.x - tex_info.atlas_min_x as f32,
-                y: index_position.y - tex_info.atlas_min_y as f32,
-                width: index_img.width as f32,
-                height: index_img.height as f32,
-            };
-            // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
-            (update.clone())(index_block, index_img);
-
-            // if !is_have {
-            //     let info = SvgTexInfo {
-            //         x: index_position.x + tex_info.atlas_min_x,
-            //         y: index_position.y + tex_info.atlas_min_y,
-            //         width: (tex_info.atlas_max_x - tex_info.atlas_min_x) as usize,
-            //         height: (tex_info.atlas_max_y - tex_info.atlas_min_y) as usize,
-            //     };
-
-            //     match svg_type {
-            //         SdfType::Normal => self.shapes_tex_info.insert(hash, info),
-            //         SdfType::Shadow(r, _) => self.shapes_shadow_tex_info.insert((hash, r), info),
-            //         SdfType::OuterGlow(r) => {
-            //             self.shapes_outer_glow_tex_info.insert((hash, r), info)
-            //         }
-            //     };
-            // }
-
-            // log::trace!("text_info=========={:?}, {:?}, {:?}, {:?}", glyph_id, glyphs[glyph_id].glyph, index_position, data_position);
+                let index_img = FontImage {
+                    width: tex_size as usize,
+                    height: tex_size as usize,
+                    buffer: sdf_tex,
+                };
+                // tex_info.sdf_offset_x = index_position.x;
+                // tex_info.sdf_offset_x = index_position.y;
+                let index_block = Block {
+                    x: index_position.x - tex_info.atlas_min_x as f32,
+                    y: index_position.y - tex_info.atlas_min_y as f32,
+                    width: index_img.width as f32,
+                    height: index_img.height as f32,
+                };
+                // log::warn!("update index tex========={:?}", (&index_block,index_img.width, index_img.height, index_img.buffer.len(), &text_info) );
+                (update.clone())(index_block, index_img);
+            }
         }
     }
 }
@@ -1452,16 +1247,16 @@ lazy_static! {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub trait Cb: Fn(DefaultKey, usize, &[char]) {}
+pub trait Cb: Fn(DefaultKey, u64, &[char]) {}
 #[cfg(target_arch = "wasm32")]
-impl<T: Fn(DefaultKey, usize, &[char])> Cb for T {}
+impl<T: Fn(DefaultKey, u64, &[char])> Cb for T {}
 #[cfg(target_arch = "wasm32")]
 pub type ShareCb = std::rc::Rc<dyn Cb>;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub trait Cb: Fn(DefaultKey, usize, &[char]) + Send + Sync {}
+pub trait Cb: Fn(DefaultKey, u64, &[char]) + Send + Sync {}
 #[cfg(not(target_arch = "wasm32"))]
-impl<T: Fn(DefaultKey, usize, &[char]) + Send + Sync> Cb for T {}
+impl<T: Fn(DefaultKey, u64, &[char]) + Send + Sync> Cb for T {}
 #[cfg(not(target_arch = "wasm32"))]
 pub type ShareCb = Arc<dyn Cb>;
 

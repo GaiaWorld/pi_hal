@@ -77,7 +77,7 @@ extern "C" {
 
     pub fn createCircle(cx: f32, cy: f32, radius: f32) -> JsValue;
     pub fn createRect(x: f32, y: f32, width: f32, height: f32) -> JsValue;
-    pub fn createSegment(ax: f32, ay: f32, bx: f32, by: f32) -> JsValue;
+    pub fn createSegment(ax: f32, ay: f32, bx: f32, by: f32, step: Option<Vec<f32>>) -> JsValue;
     pub fn createEllipse(cx: f32, cy: f32, rx: f32, ry: f32) -> JsValue;
     pub fn createPolygon(points: Vec<f32>) -> JsValue;
     pub fn createPolyline(points: Vec<f32>) -> JsValue;
@@ -95,7 +95,7 @@ extern "C" {
     pub fn computeSvgLayout(bbox: &[f32], size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
     pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, ) ->JsValue;
     pub async fn computeSvgSdfTexOfWasm(info: Vec<u8>, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, scale: f32) -> JsValue;
-    
+    pub fn computeSdfCellOfWasm(info: Vec<u8>, scale: f32) -> JsValue;
 }
 
 #[cfg(feature="web_local_load")]

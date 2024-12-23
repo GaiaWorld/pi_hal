@@ -9,6 +9,7 @@ use derive_deref::{Deref, DerefMut};
 use ordered_float::NotNan;
 use parry2d::bounding_volume::Aabb;
 use pi_hash::XHashMap;
+use pi_share::Share;
 use pi_slotmap::{DefaultKey, SlotMap};
 use serde::{Serialize, Deserialize};
 use pi_null::Null;
@@ -174,7 +175,7 @@ impl GlyphSheet {
 }
 
 impl FontMgr {
-	pub fn new(width: usize, height: usize, font_type: FontType) -> FontMgr {
+	pub fn new(width: usize, height: usize, font_type: FontType, device: Share<pi_wgpu::Device>, queue: Share<pi_wgpu::Queue>) -> FontMgr {
 		Self { 
 			sheet: GlyphSheet {
 				font_names: SlotMap::default(),
@@ -194,7 +195,7 @@ impl FontMgr {
 				default_sdf_char: Vec::default(),
 				default_font: None,
 			},
-			table: FontTable::new(width, height),
+			table: FontTable::new(width, height, device, queue ),
 			font_type,
 		}
 	}
