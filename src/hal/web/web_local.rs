@@ -22,10 +22,10 @@ pub fn init_load_cb(cb: Arc<dyn Fn(String) + Send + Sync>) {
 
 pub fn on_load(path: &str, data: Vec<u8>) {
     let v = LOAD_MAP.lock().remove(path).unwrap();
-    v.set(data);
+    v.set(Arc::new(data));
 }
 
-pub fn create_async_value(path: &str) -> AsyncValue<Vec<u8>> {
+pub fn create_async_value(path: &str) -> AsyncValue<Arc<Vec<u8>>> {
     let v = AsyncValue::new();
 
     LOAD_MAP.lock().insert(path.to_string(), v.clone());
@@ -42,7 +42,7 @@ pub async fn load_image_from_url(path: &Atom) -> Result<DynamicImage, ImageError
     image::load_from_memory(&v.await)
 }
 
-pub async fn load_file_from_url(path: &Atom) -> Result<Vec<u8>, String> {
+pub async fn load_file_from_url(path: &Atom) -> Result<Arc<Vec<u8>>, String> {
     let v = create_async_value(path);
     Ok(v.await)
 }

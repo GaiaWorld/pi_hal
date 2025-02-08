@@ -8,6 +8,7 @@ use pi_wgpu::{ImageCopyExternalImage, ExternalImageSource, PredefinedColorSpace,
 use pi_wgpu::util::DeviceExt;
 use crate::{loadKtx, loadImage, hasAtom, setAtom};
 use crate::texture::{convert_format, ImageTexture, PiDefaultTextureFormat, KTX_SUFF, view_dimension, depth_or_array_layers, dimension, ImageTextureDesc};
+use std::mem::transmute;
 
 
 // 用一个url图片纹理
@@ -21,7 +22,7 @@ pub async fn load_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue
 
 // 加载普通《图片纹理》
 async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue: &wgpu::Queue) -> Result<ImageTexture, ImageError> {
-    let id = desc.url.str_hash() as u32;
+    let id = unsafe {transmute::<_, f64>(desc.url.str_hash())};
 	if hasAtom(id) == false {
 		setAtom(id, desc.url.to_string());
 	}
@@ -34,7 +35,7 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
 		panic!("unimplemented load, {:?}", desc.url.as_str());
 	};
 
-	let image = match loadImage(desc.url.str_hash() as u32).await {
+	let image = match loadImage(id).await {
 		Ok(r) => web_sys::HtmlImageElement::from(r),
 		Err(e) => return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("{:?}", e))))
 	};
@@ -79,11 +80,11 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
 // 加载压缩纹理《图片纹理》
 async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue: &wgpu::Queue) -> Result<ImageTexture, ImageError> {
     // 加载ktx
-    let id = desc.url.str_hash() as u32;
+    let id = unsafe {transmute::<_, f64>(desc.url.str_hash())};
 	if hasAtom(id) == false {
 		setAtom(id, desc.url.to_string());
 	}
-	match loadKtx(desc.url.str_hash() as u32).await {
+	match loadKtx(id).await {
 		Ok(r) => {
 			let r: js_sys::Array = r.into(); // [width, height, depth, format, minmap_count, layer_count, face_count, [Data]]
 			let width = r.get(0).as_f64().unwrap() as u32;

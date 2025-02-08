@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex, OnceLock}, cell::OnceCell, collections::hash_map::Entry};
+use std::{cell::OnceCell, collections::hash_map::Entry, mem::transmute, sync::{Arc, Mutex, OnceLock}};
 
 use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
@@ -502,16 +502,16 @@ lazy_static! {
 }
 
 #[cfg(target_arch="wasm32")]
-pub trait Cb: Fn(DefaultKey, usize, &[char]) {}
+pub trait Cb: Fn(DefaultKey, f64, &[char]) {}
 #[cfg(target_arch="wasm32")]
-impl<T: Fn(DefaultKey, usize, &[char])> Cb for T {}
+impl<T: Fn(DefaultKey, f64, &[char])> Cb for T {}
 #[cfg(target_arch="wasm32")]
 pub type ShareCb = std::rc::Rc<dyn Cb>;
 
 #[cfg(not(target_arch="wasm32"))]
-pub trait Cb: Fn(DefaultKey, usize, &[char])  + Send + Sync {}
+pub trait Cb: Fn(DefaultKey, f64, &[char])  + Send + Sync {}
 #[cfg(not(target_arch="wasm32"))]
-impl<T: Fn(DefaultKey, usize, &[char]) + Send + Sync > Cb for T {}
+impl<T: Fn(DefaultKey, f64, &[char]) + Send + Sync > Cb for T {}
 #[cfg(not(target_arch="wasm32"))]
 pub type ShareCb = Arc<dyn Cb>;
 
@@ -535,7 +535,7 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 	let r = AsyncValue::new();
 	let k = lock.insert(r.clone());
 	if let Some(cb) = LOAD_CB_SDF.0.get() {
-		cb(k, font.str_hash(), chars);
+		cb(k, unsafe {transmute::<_, f64>(font.str_hash())}, chars);
 	} else {
 	}
 	r
