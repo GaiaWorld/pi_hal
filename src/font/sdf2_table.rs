@@ -143,7 +143,10 @@ impl Sdf2Table {
             if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
                 IS_FIRST.store(false, Ordering::Relaxed);
                 if let Some(buf) = init_local_store().await {
-                    let map: HashMap<String, Vec<u8>> = bitcode::deserialize(&buf).unwrap();
+                    let mut map: HashMap<String, Vec<u8>> = HashMap::new();
+                    if !buf.is_empty(){
+                        map = bitcode::deserialize(&buf).unwrap();
+                    }
                     *SDF_FONT.lock().unwrap() = Some(map);
                 }
 
