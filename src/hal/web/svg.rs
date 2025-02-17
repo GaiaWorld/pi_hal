@@ -5,18 +5,20 @@ use super::{
 use crate::hal::web::font_brush::SdfInfo2;
 use crate::{
     createCircle, createEllipse, createPath, createPolygon, createPolyline, createRect,
-    createSegment, createSvgInfo, free, getSvgInfo,computeSdfCellOfWasm
+    createSegment, createSvgInfo, free, getSvgInfo,computeSdfCellOfWasm, computePositionsAndUv
 };
 use parry2d::bounding_volume::Aabb;
 use wasm_bindgen::JsValue;
 // pub use pi_sdf::shape::*;
 // pub use pi_sdf::utils::SdfInfo2;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SvgInfo {
     buf: Vec<u8>,
     pub binding_box: Vec<f32>,
     pub is_area: bool,
+    pub hash: u64,
+    pub tex_size: f32,
 }
 
 impl SvgInfo {
@@ -28,11 +30,19 @@ impl SvgInfo {
     ) -> Self {
         let info = createSvgInfo(binding_box, points, is_area, is_reverse);
         let binding_box = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
         let binding_box = js_sys::Float32Array::from(binding_box).to_vec();
 
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let buf = js_sys::Uint8Array::from(buf).to_vec();
-        Self { binding_box, buf , is_area}
+        Self { 
+            binding_box, 
+            buf, 
+            is_area, 
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(), 
+        }
     }
 
     pub fn compute_layout(&self, tex_size: usize, pxrange: u32, cur_off: u32) -> LayoutInfo {
@@ -69,6 +79,20 @@ impl SvgInfo {
         let bytes = js_sys::Uint8Array::from(js_value).to_vec();
         bitcode::deserialize(&bytes).unwrap()
     }
+
+    pub fn compute_positions_and_uv( &self, ps:&[f32], uvs:&[f32], half_stroke:f32, out_ps: &mut Vec<f32>, out_uvs: &mut Vec<f32>, out_indices: &mut Vec<u16>){
+        let info = computePositionsAndUv(self.buf.clone(), ps, uvs, half_stroke);
+
+        let ps = js_sys::Reflect::get(&info, &"out_ps".to_string().into()).unwrap();
+        *out_ps = js_sys::Float32Array::from(ps).to_vec();
+
+        let uvs = js_sys::Reflect::get(&info, &"out_uvs".to_string().into()).unwrap();
+        *out_uvs = js_sys::Float32Array::from(uvs).to_vec();
+
+        let indices = js_sys::Reflect::get(&info, &"out_indices".to_string().into()).unwrap();
+        *out_indices = js_sys::Uint16Array::from(indices).to_vec();
+
+    }
 }
 
 impl Drop for SvgInfo {
@@ -89,10 +113,14 @@ impl Rect {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -115,11 +143,15 @@ impl Circle {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
 
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -142,10 +174,14 @@ impl Ellipse {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -168,10 +204,14 @@ impl Segment {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: tex_size.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -194,10 +234,14 @@ impl Polygon {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: tex_size.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -220,10 +264,14 @@ impl Polyline {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }
@@ -276,10 +324,14 @@ impl Path {
         let buf = js_sys::Reflect::get(&info, &"buf".to_string().into()).unwrap();
         let bbox = js_sys::Reflect::get(&info, &"binding_box".to_string().into()).unwrap();
         let is_area = js_sys::Reflect::get(&info, &"is_area".to_string().into()).unwrap();
+        let tex_size = js_sys::Reflect::get(&info, &"tex_size".to_string().into()).unwrap();
+        let hash = js_sys::Reflect::get(&info, &"hash".to_string().into()).unwrap();
         SvgInfo {
             buf: js_sys::Uint8Array::from(buf).to_vec(),
             binding_box: js_sys::Float32Array::from(bbox).to_vec(),
-            is_area: is_area.as_bool().unwrap()
+            is_area: is_area.as_bool().unwrap(),
+            tex_size: tex_size.as_f64().unwrap() as f32,
+            hash: hash.as_string().unwrap().parse::<u64>().unwrap(),
         }
     }
 }

@@ -96,6 +96,7 @@ extern "C" {
     pub fn computeSdfTexOfWasm(info: JsValue, result_arcs: Vec<u8>,tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, ) ->JsValue;
     pub async fn computeSvgSdfTexOfWasm(info: Vec<u8>, tex_size: usize,pxrange: u32, is_outer_glow: bool, cur_off: u32, scale: f32) -> JsValue;
     pub fn computeSdfCellOfWasm(info: Vec<u8>, scale: f32) -> JsValue;
+    pub fn computePositionsAndUv(info: Vec<u8>, ps:&[f32], uvs:&[f32], half_stroke:f32) ->JsValue;
 }
 
 #[cfg(feature="web_local_load")]
