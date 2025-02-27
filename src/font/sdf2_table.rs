@@ -21,7 +21,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::channel,
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, OnceLock,RwLock
     },
 };
 #[derive(Default, Debug)]
@@ -66,6 +66,7 @@ use pi_async_rt::prelude::AsyncRuntime;
 
 static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
 static SDF_FONT: Mutex<Option<HashMap<String, Vec<u8>>>> = Mutex::new(None);
+static GPU: RwLock<Option<GPUState>> = RwLock::new(None);
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
@@ -118,7 +119,6 @@ pub struct Sdf2Table {
     pub shapes_shadow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
     // svg 外发光sdf纹理数据信息
     pub shapes_outer_glow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
-    pub gpu: GPUState
 }
 
 #[derive(Debug)]
@@ -150,11 +150,12 @@ impl Sdf2Table {
                     *SDF_FONT.lock().unwrap() = Some(map);
                 }
 
-                log::warn!("init_local_store end");
+                // log::warn!("init_local_store end");
                 INTI_STROE.store(true, Ordering::Relaxed);
-                for v in INTI_STROE_VALUE.lock().unwrap().drain(..) {
-                    v.set(());
-                }
+                // for v in INTI_STROE_VALUE.lock().unwrap().drain(..) {
+                //     v.set(());
+                // }
+                *GPU.write().unwrap() = Some(GPUState::init(device, queue));
             }
         });
 
@@ -185,7 +186,7 @@ impl Sdf2Table {
             shapes_outer_glow: XHashMap::default(),
             shapes_shadow_tex_info: XHashMap::default(),
             shapes_outer_glow_tex_info: XHashMap::default(),
-            gpu: GPUState::init(device, queue),
+            
             // texs: XHashMap::default(),
         }
     }
@@ -758,14 +759,14 @@ impl Sdf2Table {
 
         // let temp_value = async_value.clone();
         // log::error!("================ draw text: {:?}",keys);
-        MULTI_MEDIA_RUNTIME
-            .spawn(async move {
-                if !INTI_STROE.load(Ordering::Relaxed) {
-                    log::error!("=============存储未初始化");
-                    let async_value3 = AsyncValue::new();
-                    INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
-                    async_value3.await;
-                }
+        // MULTI_MEDIA_RUNTIME
+        //     .spawn(async move {
+                // if !INTI_STROE.load(Ordering::Relaxed) {
+                //     log::error!("=============存储未初始化");
+                //     let async_value3 = AsyncValue::new();
+                //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                //     async_value3.await;
+                // }
                 // log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
                 // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
                 let mut index = 0;
@@ -901,8 +902,8 @@ impl Sdf2Table {
                         .unwrap();
                     ll += 1;
                 }
-            })
-            .unwrap();
+            // })
+            // .unwrap();
     }
 
     pub fn update<F: FnMut(Block, FontImage) + Clone + 'static>(
@@ -981,14 +982,14 @@ impl Sdf2Table {
         // let async_value = AsyncValue::new();
         let mut bboxs = self.bboxs.clone();
         self.bboxs.clear();
-        MULTI_MEDIA_RUNTIME
-            .spawn(async move {
-                if !INTI_STROE.load(Ordering::Relaxed) {
-                    // log::error!("=============存储未初始化");
-                    let async_value3 = AsyncValue::new();
-                    INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
-                    async_value3.await;
-                }
+        // MULTI_MEDIA_RUNTIME
+        //     .spawn(async move {
+                // if !INTI_STROE.load(Ordering::Relaxed) {
+                //     // log::error!("=============存储未初始化");
+                //     let async_value3 = AsyncValue::new();
+                //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                //     async_value3.await;
+                // }
 
                 // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
                 for (hash, box_info) in bboxs.drain() {
@@ -1011,8 +1012,8 @@ impl Sdf2Table {
                         })
                         .unwrap();
                 }
-            })
-            .unwrap();
+            // })
+            // .unwrap();
 
         // async_value
     }
@@ -1082,15 +1083,15 @@ impl Sdf2Table {
             let async_value1 = async_value.clone();
             let result1 = result.clone();
             let await_count = await_count.clone();
-
-            if size > 256 {
+            let gpu = GPU.read().unwrap();
+            if size > 256 && gpu.is_some() {
                 let index_position = shapes_tex_info.get(&hash).unwrap().clone();
                 let tex_offset = (
                     (index_position.x - index_position.layout.atlas_bounds[0]) as u32,
                     (index_position.y - index_position.layout.atlas_bounds[1]) as u32,
                 );
                 let scale = 1.0;
-                self.gpu.draw(
+                gpu.as_ref().unwrap().draw(
                     &texture,
                     info,
                     tex_offset,
@@ -1112,12 +1113,12 @@ impl Sdf2Table {
             } else {
                 MULTI_MEDIA_RUNTIME
                     .spawn(async move {
-                        if !INTI_STROE.load(Ordering::Relaxed) {
-                            // log::error!("=============存储未初始化");
-                            let async_value3 = AsyncValue::new();
-                            INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
-                            async_value3.await;
-                        }
+                        // if !INTI_STROE.load(Ordering::Relaxed) {
+                        //     // log::error!("=============存储未初始化");
+                        //     let async_value3 = AsyncValue::new();
+                        //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                        //     async_value3.await;
+                        // }
 
                         #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                         let sdfinfo =
