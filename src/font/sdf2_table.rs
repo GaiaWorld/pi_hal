@@ -139,9 +139,15 @@ pub struct SvgTexInfo {
 
 impl Sdf2Table {
     pub fn new(width: usize, height: usize, device: Share<wgpu::Device>, queue: Share<wgpu::Queue>,) -> Self {
-        let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
-            if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
-                IS_FIRST.store(false, Ordering::Relaxed);
+        if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
+            IS_FIRST.store(false, Ordering::Relaxed);
+             // pi_app版本不能放到多线程运行时里调用pi_wgpu，否则会报错，所以放到主线程
+            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+            {
+                *GPU.write().unwrap() = Some(GPUState::init(device, queue));
+            }
+            
+            let _ = MULTI_MEDIA_RUNTIME.spawn(async move {
                 if let Some(buf) = init_local_store().await {
                     let mut map: HashMap<String, Vec<u8>> = HashMap::new();
                     if !buf.is_empty(){
@@ -154,10 +160,15 @@ impl Sdf2Table {
                 INTI_STROE.store(true, Ordering::Relaxed);
                 // for v in INTI_STROE_VALUE.lock().unwrap().drain(..) {
                 //     v.set(());
-                // }
-                *GPU.write().unwrap() = Some(GPUState::init(device, queue));
-            }
-        });
+                // } 
+                // wasm版本 单线程放到异步运行时去初始化
+                #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                {
+                    *GPU.write().unwrap() = Some(GPUState::init(device, queue));
+                }
+                
+            });
+        }
 
         Self {
             fonts: Default::default(),
@@ -786,10 +797,7 @@ impl Sdf2Table {
                                 if sdf_map.is_some()
                                     && let Some(buffer) = sdf_map.as_mut().unwrap().remove(&key)
                                 {
-                                    #[cfg(all(
-                                        not(target_arch = "wasm32"),
-                                        not(feature = "empty")
-                                    ))]
+                                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                                     {
                                         crach_info = Some(
                                             bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap(),
