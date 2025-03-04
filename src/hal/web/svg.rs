@@ -5,7 +5,7 @@ use super::{
 use crate::hal::web::font_brush::SdfInfo2;
 use crate::{
     createCircle, createEllipse, createPath, createPolygon, createPolyline, createRect,
-    createSegment, createSvgInfo, free, getSvgInfo,computeSdfCellOfWasm, computePositionsAndUv
+    createSegment, createSvgInfo, free, getSvgInfo,computeSdfCellOfWasm, computePositionsAndUv, computeSvgSdfTexOfWasmSync
 };
 use parry2d::bounding_volume::Aabb;
 use wasm_bindgen::JsValue;
@@ -70,6 +70,13 @@ impl SvgInfo {
         // log:
         let js_value =
             computeSvgSdfTexOfWasm(self.buf.clone(), tex_size, pxrange, is_outer_glow, cur_off, scale).await;
+        let bytes = js_sys::Uint8Array::from(js_value).to_vec();
+        bitcode::deserialize(&bytes).unwrap()
+    }
+
+    pub fn compute_sdf_tex_sync(&self, tex_size: usize, pxrange: u32, is_outer_glow: bool, cur_off: u32, scale: f32) -> SdfInfo2 {
+        // log:
+        let js_value = computeSvgSdfTexOfWasmSync(self.buf.clone(), tex_size, pxrange, is_outer_glow, cur_off, scale);
         let bytes = js_sys::Uint8Array::from(js_value).to_vec();
         bitcode::deserialize(&bytes).unwrap()
     }

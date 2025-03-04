@@ -544,6 +544,11 @@ impl Sdf2Table {
         pxrang: u32,
         cut_off: u32,
     ) {
+        log::error!("======== add_shape");
+        if self.shapes_tex_info.get(&hash).is_some(){
+            log::error!("======== add_shape: is have!!1");
+            return;
+        }
         let info2 = info.compute_layout(tex_size, pxrang, cut_off);
 
         // let mut texinfo = TexInfo2 {
@@ -1189,6 +1194,31 @@ impl Sdf2Table {
                         }
                     })
                     .unwrap();
+            }
+        }
+    }
+
+    /// 提前同步计算svg
+    pub fn advance_computer_svg(
+        &mut self,
+        result: SdfResult,
+    ) {
+        let mut shapes = self.shapes.clone();
+        self.shapes.clear();
+
+        // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+        for (hash, (info, size, pxrange, cur_off)) in shapes.drain() {
+
+            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+            let sdfinfo =
+                Some(info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0));
+
+            #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+            let sdfinfo = Some(info
+                .compute_sdf_tex_sync(size, pxrange, false, cur_off, 1.0));
+            {
+                let lock = &mut result.0.lock().unwrap().svg_result;
+                lock.push((hash, sdfinfo.clone(), SdfType::Normal));
             }
         }
     }
