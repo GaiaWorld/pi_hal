@@ -1,4 +1,13 @@
-/// 字体接口定义
+//! 字体管理模块
+//!
+//! 本模块提供字体加载、字形管理、字体渲染等功能，支持位图和SDF两种渲染模式。
+//!
+//! # 主要功能
+//! - 字体元数据管理（字体家族、字号、字重等）
+//! - 字形纹理打包与缓存
+//! - 字体度量信息计算
+//! - SDF（有符号距离场）生成与处理
+//! - 多平台字体渲染抽象
 
 use std::{
 	hash::Hash, 
@@ -19,18 +28,30 @@ use smallvec::SmallVec;
 
 use super::{sdf_table::{FontCfg, MetricsInfo}, tables::FontTable};
 
+/// 通用尺寸结构体
+/// 
+/// # 泛型参数
+/// - `T`: 数值类型，支持任意数值类型（如usize, f32等）
+/// 
+/// # 示例
+/// ```
+/// let size = Size { width: 1024, height: 768 };
+/// ```
 #[derive(Debug, Clone)]
 pub struct Size<T> {
 	pub width: T,
 	pub height: T,
 }
 
+/// 矩形区域描述
+/// 
+/// 用于表示纹理中的矩形区域，坐标系以左上角为原点
 #[derive(Debug, Clone, Copy)]
 pub struct Block {
-	pub y: f32, 
-	pub x: f32, 
-	pub width: f32, 
-	pub height: f32,
+	pub y: f32,    // 矩形顶部Y坐标
+	pub x: f32,    // 矩形左侧X坐标 
+	pub width: f32, // 矩形宽度
+	pub height: f32, // 矩形高度
 }
 
 pub struct FontImage {
@@ -97,26 +118,39 @@ impl Font {
 // 	pub(crate) font_id: SmallVec<[FontId; 1]>,
 // }
 
+/// 字形唯一标识符
+/// 
+/// 基于SlotMap的键值，用于快速查找字形信息
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Deref, DerefMut)]
 pub struct GlyphId(pub DefaultKey);
 
+/// 字体唯一标识符
+/// 
+/// 表示已加载的字体实例，包含字体属性哈希和SlotMap键值
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Deref, DerefMut, Default)]
 pub struct FontId(pub DefaultKey);
 
+/// 字体家族标识符
+/// 
+/// 表示一组字体家族名称（如["Arial", "sans-serif"]）
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Deref, DerefMut, Default)]
 pub struct FontFamilyId(pub DefaultKey);
 
 
+/// 字体外观标识符
+/// 
+/// 表示特定字体文件（如"arial.ttf"）的加载实例
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Deref, DerefMut)]
 pub struct FontFaceId(pub DefaultKey);
 
+/// 字体渲染类型枚举
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FontType {
-	/// 位图方案
+	// 位图渲染 - 使用传统光栅化方式
 	Bitmap, 
-	/// Sdf1 （配置表配置sdf信息的方案）
+	// SDF1模式 - 基于预生成的SDF配置表
 	Sdf1,
-	/// Sdf2（圆弧模拟贝塞尔曲线计算距离的方案）
+	// SDF2模式 - 实时计算贝塞尔曲线距离场
 	Sdf2,
 }
 
@@ -126,11 +160,13 @@ impl Default for FontType {
     }
 }
 
+/// 字体管理器
+/// 
+/// 负责管理所有字体资源，提供统一的字体接口
 pub struct FontMgr {
-	pub sheet: GlyphSheet, // 字形表，用于存放字体的字形信息
-	pub table: FontTable,
-	// 画笔，用于测量、绘制文字，不同平台可能有不同的实现（web平台依赖于canvas的文字功能， app、exe平台通常可以使用freetype； 同时还有sdf字体功能）
-	pub font_type: FontType,
+	pub sheet: GlyphSheet,    // 字形表，存储所有字形元数据
+	pub table: FontTable,     // 字体表，处理平台相关的字体操作
+	pub font_type: FontType,  // 当前激活的渲染模式
 }
 
 impl std::ops::Deref for FontMgr {
@@ -175,6 +211,14 @@ impl GlyphSheet {
 }
 
 impl FontMgr {
+	/// 创建新的字体管理器
+	/// 
+	/// # 参数
+	/// - `width`: 纹理图集宽度
+	/// - `height`: 纹理图集高度  
+	/// - `font_type`: 初始渲染模式
+	/// - `device`: wgpu设备共享句柄
+	/// - `queue`: wgpu命令队列共享句柄
 	pub fn new(width: usize, height: usize, font_type: FontType, device: Share<pi_wgpu::Device>, queue: Share<pi_wgpu::Queue>) -> FontMgr {
 		Self { 
 			sheet: GlyphSheet {
@@ -200,21 +244,30 @@ impl FontMgr {
 		}
 	}
 
+	/// 获取当前纹理图集尺寸
 	pub fn size(&self) -> Size<usize> {
 		self.table.size(self.font_type)
 	}
 
+	/// 设置当前字体渲染模式
 	pub fn set_font_type(&mut self, font_type: FontType) {
 		self.font_type = font_type
 	}
 
+	/// 获取当前字体渲染模式
 	pub fn font_type(&self) -> FontType {
 		self.font_type
 	}
 }
 
 impl FontMgr {
-	/// 字体id， 为每一种不同的字体描述创建一个唯一分配的id
+	/// 获取或创建字体ID
+	/// 
+	/// # 参数
+	/// - `f`: 字体描述符
+	/// 
+	/// # 返回值
+	/// 唯一标识该字体配置的FontId
 	pub fn font_id(&mut self, mut f: Font) -> FontId {
 		f.font_type = self.font_type;
 		let mut font_family = f.font_family.clone();
@@ -253,6 +306,9 @@ impl FontMgr {
 		font_id
 	}
 
+	/// 获取字体家族ID
+	/// 
+	/// 如果指定的字体家族不存在，会自动创建新条目
 	pub fn font_family_id(&mut self, fonts: &SmallVec<[Atom; 1]>) -> FontFamilyId {
 		let GlyphSheet{ font_family_map, font_familys,..} = &mut self.sheet;
 
@@ -266,10 +322,16 @@ impl FontMgr {
 		}
 	}
 
+	/// 获取字体元信息
 	pub fn font_info(&self, f: FontId) -> &FontInfo {
 		&self.sheet.fonts[f.0]
 	}
 
+	/// 计算字体渲染高度
+	/// 
+	/// # 参数
+	/// - `f`: 字体ID
+	/// - `font_size`: 请求的字号（单位：像素）
 	pub fn font_height(&self, f: FontId, font_size: usize) -> f32 {
 		match self.sheet.fonts.get(*f) {
 			Some(r) =>  {if r.height < 2.0 {r.height * font_size as f32} else {r.height}},
@@ -277,23 +339,42 @@ impl FontMgr {
 		}
 	}
 
-	/// 字形id, 纹理中没有更多空间容纳时，返回None
+	/// 获取字符的字形ID
+	/// 
+	/// 如果字形尚未渲染，会自动触发渲染流程
+	/// 
+	/// # 返回值
+	/// Option<GlyphId> - 当纹理图集已满时返回None
 	pub fn glyph_id(&mut self, f: FontId, char: char) -> Option<GlyphId> {
 		let font_info = &mut self.sheet.fonts[f.0];
 		self.table.glyph_id(f, char, font_info, self.font_type)
 	}
 
+	/// 为字形添加阴影效果
+	/// 
+	/// # 参数
+	/// - `f`: 字体ID
+	/// - `id`: 目标字形ID
+	/// - `radius`: 阴影半径（像素）
+	/// - `weight`: 阴影强度（0.0-1.0）
 	pub fn add_font_shadow(&mut self, f: FontId, id: GlyphId, radius: u32, weight: NotNan<f32>) {
 		let font_info = &self.sheet.fonts[f.0];
 		self.table.sdf2_table. add_font_shadow(id, font_info, radius, weight);
 	}
 
+	/// 添加外发光效果
+	/// 
+	/// # 参数
+	/// - `range`: 发光范围（像素）
 	pub fn add_font_outer_glow(&mut self, f: FontId, id: GlyphId, range: u32) {
 		let font_info = &self.sheet.fonts[f.0];
 		self.table.sdf2_table. add_font_outer_glow(id, font_info, range);
 	}
 
-	/// 测量宽度
+	/// 测量字符宽度
+	/// 
+	/// # 返回值
+	/// 字符的布局宽度（单位：像素）
 	pub fn measure_width(&mut self, f: FontId, char: char) -> f32 {
 		let font_info = match self.sheet.fonts.get_mut(*f) {
 			Some(r) => r,
@@ -302,7 +383,7 @@ impl FontMgr {
 		self.table.measure_width(f, font_info, char, self.font_type)
 	}
 
-	// 测量信息
+	/// 获取字形度量信息
 	pub fn metrics(&self, id: GlyphId) -> Option<&MetricsInfo> {
 		let desc = self.table.glyph_id_desc(id, self.font_type);
 		let font_info = match self.sheet.fonts.get(desc.font_id.0) {
@@ -312,6 +393,7 @@ impl FontMgr {
 		self.table.metrics(id, font_info, self.font_type)
 	}
 
+	/// 获取字体全局度量信息
 	pub fn font_metrics(&self, font_id: FontId) -> Option<&MetricsInfo> {
 		let font_info = match self.sheet.fonts.get(font_id.0) {
 			Some(r) => r,
@@ -433,14 +515,19 @@ impl FontMgr {
 	// 	}
 	// }
 
-	// 添加sdf配置
+	/// 添加SDF配置项
+	/// 
+	/// # 参数
+	/// - `font_cfg`: SDF字体配置信息
 	pub fn add_sdf_cfg(&mut self, font_cfg: FontCfg) {
 		let font_face = Atom::from(font_cfg.name.clone());
 		let font_face_id = self.create_font_face(&font_face);
 		self.table.sdf_table.add_cfg(font_face_id, font_cfg);
 	}
 
-	// 添加sdf配置
+	/// 添加默认SDF字符
+	/// 
+	/// 用于预生成常用字符的SDF数据
 	pub fn add_sdf_default_char(&mut self, _font_face: Atom, _char: char) {
 		// let font_face_id = self.create_font_face(&font_face);
 		// let font_family_id = self.font_family_id(Font::new(font_face.clone(), BASE_FONT_SIZE, 500, unsafe{ NotNan::new_unchecked(0.0)}));
@@ -449,11 +536,14 @@ impl FontMgr {
 		// self.default_sdf_char.push((font_face, char));
 	}
 
+	/// 获取可变的字体信息表
 	pub fn fonts_mut(&mut self) -> &mut SlotMap<DefaultKey, FontInfo> {
 		&mut self.sheet.fonts
 	}
 
-	/// 清理字形信息
+	/// 清理所有缓存数据
+	/// 
+	/// 重置纹理图集并保留预生成的默认字符
 	pub fn clear(&mut self) {
 		for  info in self.sheet.fonts.values_mut() {
 			info.await_info.size = Size {width: 0, height: 0};
@@ -480,6 +570,7 @@ impl FontMgr {
 	// 	self.sheet.texture_version.load(Ordering::Relaxed)
 	// }
 
+	/// 内部方法：获取或插入字体记录
 	fn get_or_insert_font(&mut self, f: Font, font_ids: SmallVec<[FontFaceId; 1]>, font_family_id: FontFamilyId) -> FontId {
 		match self.sheet.fonts_map.entry(f.clone()) {
 			Entry::Occupied(r) => return r.get().clone(),
@@ -501,6 +592,10 @@ impl FontMgr {
 	
 	
 
+	/// 创建字体外观实例
+	/// 
+	/// # 参数
+	/// - `r`: 字体名称原子（如"Arial"）
 	pub fn create_font_face(&mut self, r: &Atom) -> FontFaceId {
 		let GlyphSheet{font_names_map, font_names, default_font, ..} = &mut self.sheet;
 		if default_font.is_none() {
@@ -529,51 +624,55 @@ pub const BASE_FONT_SIZE: usize = 32;
 /// sdf没字符的ox，oy为浮点数， 但ox，oy通常比较小， 
 /// 在配置中将ox，oy编码为i16，以节省配置空间，减少配置文件下载量，因此将真实的ox，oy乘以本常量再取整，
 /// 因此真实的ox = glyph.ox * OFFSET_RANGE, oy = glyph.oy * OFFSET_RANGE
-pub const OFFSET_RANGE: f32 = (2 as u32).pow(15) as f32;
+/// SDF偏移量范围常量，用于坐标编码优化
+pub const OFFSET_RANGE: f32 = (2_u32).pow(15) as f32;
 
-// 粗体字的font-weight
+/// 粗体字的最小字重阈值
 pub const BLOD_WEIGHT: usize = 700;
 
-// 粗体字的放大因子
+/// 粗体字缩放因子，用于自动调整字符宽度
 pub const BLOD_FACTOR: f32 = 1.13;
 
+/// 字形描述信息
 #[derive(Debug)]
 pub struct GlyphIdDesc {
-	pub font_id: FontId,
-	pub char: char,
-	pub glyph: Glyph,
-	pub font_face_index: usize,
+	pub font_id: FontId,        // 所属字体ID
+	pub char: char,             // Unicode字符
+	pub glyph: Glyph,           // 字形度量信息
+	pub font_face_index: usize,  // 字体外观索引
 }
 
+/// 字体元信息
 #[derive(Debug)]
 pub struct FontInfo {
-	pub font: Font,
-	pub font_ids: SmallVec<[FontFaceId; 1]>,
-	pub height: f32,
-	pub max_height: f32,
-	pub await_info: AwaitInfo,
-	pub font_family_id: FontFamilyId,
+	pub font: Font,                // 字体配置
+	pub font_ids: SmallVec<[FontFaceId; 1]>, // 字体外观ID列表
+	pub height: f32,               // 实际渲染高度
+	pub max_height: f32,           // 最大字符高度
+	pub await_info: AwaitInfo,      // 待渲染队列信息
+	pub font_family_id: FontFamilyId, // 字体家族ID
 }
 
+/// 待渲染队列信息
 #[derive(Debug)]
 pub struct AwaitInfo {
-	pub size: Size<usize>,
-	pub wait_list: Vec<GlyphId>,
-	// pub top: usize,
+	pub size: Size<usize>,      // 等待区域尺寸
+	pub wait_list: Vec<GlyphId>, // 等待渲染的字形ID列表
 }
 
 
+/// 字形度量信息
 #[derive(Debug, Default, Clone)]
 pub struct Glyph {
-	pub plane_min_x: f32, // 相对与整个字体高度(acender-decender)的百分比
-	pub plane_min_y: f32, // 相对与整个字体高度的百分比
-	pub plane_max_x: f32, // 相对与整个字体高度(acender-decender)的百分比
-	pub plane_max_y: f32, // 相对与整个字体高度的百分比
-	pub x: f32, // 纹理区域左上角在整张纹理左上角的x偏移（单位： 像素）
-    pub y: f32, // 纹理区域左上角在整张纹理左上角的y偏移（单位： 像素）
-	pub width: f32, // 纹理区域的宽度（单位： 像素）
-    pub height: f32, // 纹理区域的高度（单位： 像素）
-	pub advance: f32, // 字符的布局宽度（单位： 相对与整个字体高度的百分比
+	pub plane_min_x: f32,  // 最小X坐标（相对于字体高度的百分比）
+	pub plane_min_y: f32,  // 最小Y坐标（相对于字体高度的百分比）
+	pub plane_max_x: f32,  // 最大X坐标（相对于字体高度的百分比）
+	pub plane_max_y: f32,  // 最大Y坐标（相对于字体高度的百分比）
+	pub x: f32,            // 纹理X坐标（像素）
+    pub y: f32,            // 纹理Y坐标（像素）
+	pub width: f32,        // 纹理宽度（像素）
+    pub height: f32,       // 纹理高度（像素）
+	pub advance: f32,      // 布局步进宽度（相对于字体高度的百分比）
 }
 
 #[derive(Debug)]

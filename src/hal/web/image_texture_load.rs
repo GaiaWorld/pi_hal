@@ -12,6 +12,17 @@ use std::mem::transmute;
 
 
 // 用一个url图片纹理
+/// 异步加载纹理数据
+///
+/// # 参数
+/// * `desc` - 纹理描述信息
+/// * `device` - WGPU设备实例
+/// * `queue` - WGPU命令队列
+///
+/// # 功能说明
+/// - 根据文件后缀自动识别KTX压缩纹理格式
+/// - 支持普通图片和压缩纹理的异步加载
+/// - 自动处理纹理格式转换和内存分配
 pub async fn load_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue: &wgpu::Queue) -> Result<ImageTexture, ImageError> {
     if desc.url.ends_with(KTX_SUFF) {
         load_compress_from_url(desc, device, queue).await

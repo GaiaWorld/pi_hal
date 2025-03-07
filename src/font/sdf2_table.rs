@@ -1,3 +1,12 @@
+//! 字体SDF渲染核心模块
+//! 
+//! 本模块实现基于有向距离场(SDF)的字体渲染系统，主要功能包括：
+//! - 字体资源管理
+//! - SDF纹理生成与处理
+//! - 阴影/外发光特效支持
+//! - 多线程异步渲染管线
+//! - GPU加速计算
+
 use crate::font_brush::CellInfo;
 use crate::font_brush::LayoutInfo;
 use ordered_float::NotNan;
@@ -7,12 +16,11 @@ use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;
-// use pi_sdf::utils::compute_layout;
 use crate::font_brush::OutlineInfo;
 use pi_wgpu as wgpu;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
-/// 用圆弧曲线模拟字符轮廓， 并用于计算距离值的方案
+/// 用圆弧曲线模拟字符轮廓，并用于计算距离值的方案
 use std::{
     cell::OnceCell,
     collections::{hash_map::Entry, HashMap},
@@ -24,13 +32,16 @@ use std::{
         Arc, Mutex, OnceLock,RwLock
     },
 };
+/// SDF处理结果存储结构
 #[derive(Default, Debug)]
 pub struct SdfResultInner {
+    /// 字体相关处理结果存储：(字体Key, SDF信息, SDF类型)
     pub font_result: Vec<(DefaultKey, SdfInfo2, SdfType)>,
     pub svg_result: Vec<(u64, Option<SdfInfo2>, SdfType)>,
     pub box_result: Vec<(u64, BoxInfo, Vec<u8>)>,
 }
 
+/// 线程安全的SDF处理结果包装
 #[derive(Debug, Default, Clone)]
 pub struct SdfResult(pub Arc<ShareMutex<SdfResultInner>>);
 // use pi_sdf::utils::GlyphInfo;
@@ -121,15 +132,19 @@ pub struct Sdf2Table {
     pub shapes_outer_glow_tex_info: XHashMap<(u64, u32), SvgTexInfo>,
 }
 
+/// SDF类型枚举
 #[derive(Debug)]
 pub enum SdfType {
+    /// 普通SDF
     Normal,
     Shadow(u32, NotNan<f32>),
     OuterGlow(u32),
 }
 
+/// SVG纹理信息结构
 #[derive(Debug, Clone, Default)]
 pub struct SvgTexInfo {
+    /// 纹理坐标X
     pub x: f32,
     pub y: f32,
     pub width: usize,
@@ -142,6 +157,7 @@ impl Sdf2Table {
         if !INTI_STROE.load(Ordering::Relaxed) && IS_FIRST.load(Ordering::Relaxed) {
             IS_FIRST.store(false, Ordering::Relaxed);
              // pi_app版本不能放到多线程运行时里调用pi_wgpu，否则会报错，所以放到主线程
+            // 跨平台注意事项：在非WebAssembly平台初始化GPU状态
             #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
             {
                 *GPU.write().unwrap() = Some(GPUState::init(device, queue));

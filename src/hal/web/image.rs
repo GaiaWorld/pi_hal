@@ -7,6 +7,17 @@ use pi_atom::Atom;
 use crate::{loadImageAsCanvas, hasAtom, setAtom};
 
 // path可能是本地路径， 也可能是网络路径，
+/// 从指定URL异步加载图片
+///
+/// # 参数
+/// * `path` - 图片路径，支持本地或网络路径
+///
+/// # 返回值
+/// 返回`Result`包含动态图片数据或图像错误
+///
+/// # 注意事项
+/// - 当未启用`web_local_load`特性时使用此实现
+/// - 自动识别PNG格式并返回RGBA格式图片
 #[cfg(not(feature="web_local_load"))]
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
 	// let is_png = if path.ends_with(".png") {
