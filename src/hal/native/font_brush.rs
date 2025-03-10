@@ -10,6 +10,18 @@ use smallvec::SmallVec;
 
 use crate::{create_async_value, font::font::{Await, Block, DrawBlock, FontImage, FontInfo}};
 
+/// 字体渲染笔刷
+///
+/// 负责管理字体资源并进行文本渲染，主要功能包括：
+/// - 字体缓存管理
+/// - 字体度量计算
+/// - 异步文本渲染
+///
+/// ## 字段说明
+/// - `faces`: 字体实例缓存（按字体ID索引）
+/// - `base_faces`: 基础字体实例集合
+/// - `base_faces_map`: 字体名称到基础字体的映射
+/// - `default_family`: 默认字体族名称
 pub struct Brush {
 	faces: SecondaryMap<DefaultKey, (SmallVec<[Option<usize>; 1]>, usize, f32) >,
 	base_faces: Vec<(Face, usize, f32)>,
@@ -58,6 +70,16 @@ impl Brush {
 		// log::trace!("check_or_create_face!!!========{:?}, {:p}, {:?}", *font_id, &self.faces[*font_id], &self.faces[*font_id]);
 	}
 
+	/// 计算基础字体高度
+	///
+	/// # 参数
+	/// - `font`: 字体配置信息
+	///
+	/// # 返回值
+	/// 返回字体的总高度（上行高 - 下行高）
+	///
+	/// # Panics
+	/// 当字体不存在时触发panic
 	pub fn base_height(&mut self, font: &FontInfo) -> f32 {
 		let faces = &mut self.faces[*font.font_family_id];
 		// log::trace!("height!!!========{:?}, {:p}, {:?}", *font_id, face, face);
@@ -78,7 +100,20 @@ impl Brush {
 		// metrics.ascender as f32 - metrics.descender as f32
 	}
 
-    pub fn base_width(&mut self, font: &FontInfo, char: char) -> (f32, usize/*fontface在数组中的索引*/) {
+    /// 计算字符宽度
+    ///
+    /// # 参数
+    /// - `font`: 字体配置信息
+    /// - `char`: 需要测量的字符
+    ///
+    /// # 返回值
+    /// 元组包含：
+    /// - f32: 字符的水平推进宽度
+    /// - usize: 使用的字体实例在数组中的索引
+    ///
+    /// # Panics
+    /// 当字体不存在时触发panic
+    pub fn base_width(&mut self, font: &FontInfo, char: char) -> (f32, usize) {
 		let faces = &mut self.faces[*font.font_family_id];
 	
 		for (index,face) in faces.0.iter().enumerate() {
@@ -98,6 +133,14 @@ impl Brush {
 		panic!("font is not exist, font_family={:?}, and default font is none", &font.font.font_family);
     }
 
+    /// 执行文本绘制操作
+    ///
+    /// # 参数
+    /// - `draw_list`: 需要绘制的文本块列表
+    /// - `update`: 绘制完成后的回调函数
+    ///
+    /// # 注意
+    /// 当前实现为同步绘制，未来计划改为异步操作
     pub fn draw<F: FnMut(Block, FontImage) + Clone + ThreadSync + 'static>(
 		&mut self, 
 		draw_list: Vec<DrawBlock>,

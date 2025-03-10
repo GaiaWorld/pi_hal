@@ -1,8 +1,15 @@
 use parry2d::bounding_volume::Aabb;
-// use parry2d::math::Point;
+
+/// 二维空间中的点类型别名（使用f32精度）
 type Point = parry2d::math::Point<f32>;
+/// 二维向量类型别名（使用f32精度）
 type Vector2 = parry2d::math::Vector<f32>;
 
+/// 误差函数近似实现（最大误差小于0.00035）
+/// 基于多项式近似公式：erf(x) ≈ 1 - 1/(1 + a1x + a2x² + a3x³ + a4x⁴)^4
+/// 参数:
+/// - x: 输入值
+/// 返回: 误差函数计算结果，范围[-1, 1]
 fn erf(mut x: f32) -> f32 {
     let negative = x < 0.0;
     if negative {
@@ -17,30 +24,39 @@ fn erf(mut x: f32) -> f32 {
     return if negative { -result } else { result };
 }
 
-// A useful helper for calculating integrals of the Gaussian function via the error function:
-//
-//      "erf"_sigma(x) = 2 int 1/sqrt(2 pi sigma^2) e^(-x^2/(2 sigma^2)) dx
-//                     = "erf"(x/(sigma sqrt(2)))
+/// 基于标准差调整的误差函数
+/// 将输入值x按标准差sigma缩放后计算误差函数
+/// 数学公式: erf(x/(σ√2))
+/// 参数:
+/// - x: 原始距离值
+/// - sigma: 高斯分布的标准差
+/// 返回: 缩放后的误差函数值
 fn erf_sigma(x: f32, sigma: f32) -> f32 {
     return erf(x / (sigma * 1.4142135623730951));
 }
 
-// Returns the blurred color value from the box itself (not counting any rounded corners). 'p_0' is
-// the vector distance to the top left corner of the box; 'p_1' is the vector distance to its
-// bottom right corner.
-//
-//      "colorFromRect"_sigma(p_0, p_1)
-//          = int_{p_{0_y}}^{p_{1_y}} int_{p_{1_x}}^{p_{0_x}} G_sigma(y) G_sigma(x) dx dy
-//          = 1/4 ("erf"_sigma(p_{1_x}) - "erf"_sigma(p_{0_x}))
-//              ("erf"_sigma(p_{1_y}) - "erf"_sigma(p_{0_y}))
+/// 计算矩形区域的高斯模糊颜色值
+/// 通过误差函数计算二维高斯积分，得到矩形区域的模糊强度
+/// 数学公式: 
+/// 1/4 * [erf_sigma(p1.x) - erf_sigma(p0.x)] * [erf_sigma(p1.y) - erf_sigma(p0.y)]
+/// 参数:
+/// - p0: 到矩形左上角的向量距离
+/// - p1: 到矩形右下角的向量距离
+/// - sigma: 高斯模糊的标准差
+/// 返回: 归一化的模糊强度值，范围[0.0, 1.0]
 fn color_from_rect(p0: Vector2, p1: Vector2, sigma: f32) -> f32 {
     return (erf_sigma(p1.x, sigma) - erf_sigma(p0.x, sigma))
         * (erf_sigma(p1.y, sigma) - erf_sigma(p0.y, sigma))
         / 4.0;
 }
 
-// The blurred color value for the point at 'pos' with the top left corner of the box at
-// 'p_{0_"rect"}' and the bottom right corner of the box at 'p_{1_"rect"}'.
+/// 计算指定位置点的阴影透明度
+/// 参数:
+/// - pos: 当前像素点的位置
+/// - pt_min: 包围盒最小点（左上角）
+/// - pt_max: 包围盒最大点（右下角）
+/// - sigma: 高斯模糊的标准差
+/// 返回: 该点的阴影透明度值，范围[0.0, 1.0]
 fn get_shadow_alpha(pos: Point, pt_min: &Point, pt_max: &Point, sigma: f32) -> f32 {
     // Compute the vector distances 'p_0' and 'p_1'.
     let d_min = pos - pt_min;
@@ -51,6 +67,11 @@ fn get_shadow_alpha(pos: Point, pt_min: &Point, pt_max: &Point, sigma: f32) -> f
     return color_from_rect(d_min, d_max, sigma);
 }
 
+/// 生成模糊后的像素图
+/// 遍历每个像素位置，计算其阴影透明度并转换为8位灰度值
+/// 参数:
+/// - info: 包含模糊参数的BoxInfo结构体
+/// 返回: 灰度像素数组，每个元素范围[0, 255]
 pub fn blur_box(info: BoxInfo) -> Vec<u8> {
     let BoxInfo {
         p_w,
@@ -76,6 +97,16 @@ pub fn blur_box(info: BoxInfo) -> Vec<u8> {
     pixmap
 }
 
+/// 模糊处理参数结构体
+/// 字段说明:
+/// - p_w: 像素图宽度
+/// - p_h: 像素图高度
+/// - start: 起始点坐标（包围盒左上角偏移量）
+/// - px_dsitance: 像素间距（与纹理尺寸相关）
+/// - sigma: 高斯模糊标准差
+/// - atlas_bounds: 纹理图集边界包围盒
+/// - bbox: 实际使用的包围盒
+/// - radius: 模糊半径
 #[derive(Debug, Clone)]
 pub struct BoxInfo {
     pub p_w: f32,
@@ -88,6 +119,12 @@ pub struct BoxInfo {
     pub radius: u32,
 }
 
+/// 计算模糊框的布局参数
+/// 参数:
+/// - bbox: 原始包围盒
+/// - txe_size: 纹理尺寸
+/// - radius: 模糊半径
+/// 返回: 包含布局参数的BoxInfo结构体
 pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     let b_w = bbox.maxs.x - bbox.mins.x;
     let b_h = bbox.maxs.y - bbox.mins.y;
@@ -126,6 +163,14 @@ pub fn compute_box_layout(bbox: Aabb, txe_size: usize, radius: u32) -> BoxInfo {
     info
 }
 const SCALE: f32 = 10.0;
+/// 执行高斯模糊处理
+/// 参数:
+/// - sdf_tex: 输入的有符号距离场纹理数据
+/// - width: 纹理宽度
+/// - height: 纹理高度
+/// - radius: 模糊半径
+/// - weight: 距离场权重系数（控制模糊强度）
+/// 返回: 模糊后的灰度像素数组
 pub fn gaussian_blur(
     sdf_tex: Vec<u8>,
     width: u32,
@@ -177,6 +222,11 @@ pub fn gaussian_blur(
     output
 }
 
+/// 创建高斯卷积核
+/// 根据半径生成二维高斯分布权重矩阵
+/// 参数:
+/// - radius: 模糊半径（决定核尺寸为 2r+1 x 2r+1）
+/// 返回: 归一化的高斯核矩阵
 fn create_gaussian_kernel(radius: u32) -> Vec<Vec<f32>> {
     let sigma = radius as f32 / 2.0;
     let size = radius * 2 + 1;

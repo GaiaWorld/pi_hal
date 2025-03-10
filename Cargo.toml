@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.50"
+version = "0.1.51"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -73,6 +73,8 @@ web_local_load = []
 [patch.yn]
 pi_sdf = {path="../pi_sdf"}
 # pi_wgpu = {path="../pi_wgpu"}
-# pi_glow = {path="../pi_glow"}
+
+[patch.crates-io]
+pi_share = {path="../pi_share"}
 
 

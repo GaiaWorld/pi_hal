@@ -20,6 +20,12 @@ use super::{
     setFont, toOutline,
 };
 
+/// 字体绘制工具，封装了Canvas绘制上下文
+/// 
+/// # 字段说明
+/// - `fonts`: 字体缓存集合
+/// - `canvas`: HTML Canvas元素
+/// - `ctx`: Canvas 2D渲染上下文
 pub struct Brush {
     fonts: SecondaryMap<DefaultKey, Font>,
     canvas: HtmlCanvasElement,
