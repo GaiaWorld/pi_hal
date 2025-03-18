@@ -66,13 +66,16 @@ extern "C" {
     pub async fn computerSdf(max_box: Vec<f32>, outline: JsValue) -> JsValue;
     pub async fn computeSdfTex(outline: JsValue, size: usize, pxrange: u32) -> JsValue;
     pub fn horizontalAdvance(face: JsValue, text: String) -> f32;
+    pub fn horizontalAdvanceOfGlyphIndex(face: JsValue, glyph_index: u16) -> f32;
     pub fn ascender(face: JsValue) -> f32;
     pub fn descender(face: JsValue) -> f32;
     pub fn maxBox(face: JsValue)-> JsValue;
     pub fn maxBoxNormaliz(face: JsValue)-> JsValue;
     pub fn toOutline(face: JsValue, text: String) ->JsValue;
+    pub fn toOutlineOfGlyphIndex(face: JsValue, glyph_index: u16) ->JsValue;
     // pub fn toOutline3(face: JsValue, text: String) ->JsValue;
     pub fn glyphIndex(face: JsValue, text: String) -> u16;
+    pub fn glyphIndexs(face: JsValue, text: String, script: u32) -> Vec<u16>;
     pub fn debugSize(face: JsValue) -> usize;
 
     pub fn createCircle(cx: f32, cy: f32, radius: f32) -> JsValue;

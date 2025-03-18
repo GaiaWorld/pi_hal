@@ -133,6 +133,7 @@ export async function computerSdf(char, outline) {}
 export async function computeSdfTex(outline, size, pxrange){}
 
 export function horizontalAdvance(face, text) {}
+export function horizontalAdvanceOfGlyphIndex(face, glyph_index) {}
 
 export function ascender(face) {}
 
@@ -143,9 +144,11 @@ export function maxBox(face) {}
 export function maxBoxNormaliz(face) {}
 
 export function toOutline(face, text) {}
+export function toOutlineOfGlyphIndex(face, glyph_index) {}
 
 export function toOutline3(face, text) {}
 export function glyphIndex(face, text) {}
+export function glyphIndexs(face, text, script) {}
 
 export function debugSize(face) {}
 

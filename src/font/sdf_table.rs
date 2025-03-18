@@ -125,6 +125,7 @@ impl SdfTable {
 					font_id: f,
 					char,
 					font_face_index: 0,
+					glyph_index: 0,
 					glyph: Glyph {
 						x: 0.0, 
 						y: 0.0, 

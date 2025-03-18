@@ -638,6 +638,7 @@ pub const BLOD_FACTOR: f32 = 1.13;
 pub struct GlyphIdDesc {
 	pub font_id: FontId,        // 所属字体ID
 	pub char: char,             // Unicode字符
+	pub glyph_index: u16,
 	pub glyph: Glyph,           // 字形度量信息
 	pub font_face_index: usize,  // 字体外观索引
 }

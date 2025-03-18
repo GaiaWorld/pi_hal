@@ -17,7 +17,7 @@ use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement};
 use super::{
     computeLayout, computeNearArcs, computeSdfTex, computeSdfTexOfWasm, debugSize, drawChar,
     drawCharWithStroke, fillBackGround, free, getGlobalMetricsHeight, glyphIndex, loadFontSdf,
-    setFont, toOutline,
+    setFont, toOutline, toOutlineOfGlyphIndex, glyphIndexs, horizontalAdvanceOfGlyphIndex
 };
 
 /// 字体绘制工具，封装了Canvas绘制上下文
@@ -323,6 +323,11 @@ impl FontFace {
         return horizontalAdvance(self.0.clone(), char.to_string());
     }
 
+    /// 水平宽度
+    pub fn horizontal_advance_of_glyph_index(&mut self, glyph_index: u16) -> f32 {
+        return horizontalAdvanceOfGlyphIndex(self.0.clone(), glyph_index);
+    }
+
     pub fn ascender(&self) -> f32 {
         return ascender(self.0.clone());
     }
@@ -366,8 +371,26 @@ impl FontFace {
         }
     }
 
+    pub fn to_outline_of_glyph_index(&self, glyph_index: u16) -> OutlineInfo {
+        let js_value = toOutlineOfGlyphIndex(self.0.clone(), glyph_index);
+        let bbox = js_sys::Reflect::get(&js_value, &"bbox".to_string().into()).unwrap();
+        let units_per_em =
+            js_sys::Reflect::get(&js_value, &"units_per_em".to_string().into()).unwrap();
+        let advance = js_sys::Reflect::get(&js_value, &"advance".to_string().into()).unwrap();
+        OutlineInfo {
+            js_value,
+            units_per_em: units_per_em.as_f64().unwrap() as u16,
+            bbox: js_sys::Float32Array::from(bbox).to_vec(),
+            advance: advance.as_f64().unwrap() as u16,
+        }
+    }
+
     pub fn glyph_index(&self, c: char) -> u16 {
         glyphIndex(self.0.clone(), c.to_string())
+    }
+
+    pub fn glyph_indexs(&self, text: &str, script: u32) -> Vec<u16> {
+        glyphIndexs(self.0.clone(), text.to_string(), script)
     }
 
     pub fn debug_size(&self) -> usize {

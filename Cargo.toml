@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.51"
+version = "0.1.52"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -35,7 +35,7 @@ nalgebra = "0.32"
 lazy_static = "1.4"
 num_cpus = "1.16"
 log = "0.4"
-serde = { version = "1.0", features = ["derive"], option=true }
+serde = { version = "1.0", features = ["derive"] }
 derive_deref = "1.1"
 async-trait = "0.1"
 parking_lot = "0.12"
