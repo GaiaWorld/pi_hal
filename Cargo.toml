@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bytemuck = { version = "1.4", features = [ "derive" ] }
-pi_time = "0.3"
+pi_time = "0.5"
 pi_wgpu = { version = "0.1", registry = "yn"}
 ktx = "0.3"
 # pi_share = {version="0.4", features=["serial"]}

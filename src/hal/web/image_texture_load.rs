@@ -121,7 +121,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 				width,
 				height,
 				depth_or_array_layers: depth_or_array_layers(layer_count, face_count, depth),
-			}.physical_size(format);
+			};
 			
 
 			log::debug!("create_texture_from_ktx, width====={:?}, height==={:?}", texture_extent.width, texture_extent.height);
