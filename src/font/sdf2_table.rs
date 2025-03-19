@@ -12,7 +12,7 @@ use crate::font_brush::LayoutInfo;
 use ordered_float::NotNan;
 use parry2d::math::Vector;
 use parry2d::{bounding_volume::Aabb, math::Point};
-use pi_async_rt::prelude::AsyncValueNonBlocking as AsyncValue;
+use pi_async_rt::prelude::AsyncValue;
 use pi_atom::Atom;
 use pi_hash::XHashMap;
 use pi_null::Null;

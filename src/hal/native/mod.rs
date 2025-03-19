@@ -27,7 +27,7 @@ use std::{
 
 use parking_lot::Mutex;
 use parry2d::shape::Shape;
-use pi_async_rt::rt::AsyncValueNonBlocking as AsyncValue;
+use pi_async_rt::rt::AsyncValue;
 use pi_share::Share;
 
 /// 压缩纹理处理模块

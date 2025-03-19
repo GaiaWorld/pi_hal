@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.1.53"
+version = "0.2.2"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -14,22 +14,22 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 bytemuck = { version = "1.4", features = [ "derive" ] }
 pi_time = "0.5"
-pi_wgpu = { version = "0.1", registry = "yn"}
+pi_wgpu = { version = "0.2", registry = "yn"}
 ktx = "0.3"
 # pi_share = {version="0.4", features=["serial"]}
 smallvec = { version = "1.8", features = ["serde"] }
-image = "0.24"
-pi_assets = "0.14"
-pi_atom = "0.5"
-pi_share = "0.4"
-pi-async-rt = "0.1"
+image = "0.25"
+pi_assets = "0.15"
+pi_atom = "0.6"
+pi_share = "0.5"
+pi-async-rt = "0.2"
 # pi-async-rt = {version="0.1", features=["serial"]}
 pi_futures = "0.1"
 pi_hash = "0.1"
-pi_slotmap = {version= "0.1", features = ["serde"]}
+pi_slotmap = {version= "0.2", features = ["serde"]}
 pi_ucd="0.1"
 pi_null="0.1"
-ordered-float="3.0"
+ordered-float="3.9"
 # 回滚到0.30, 0.31安卓pi_app 编不过
 nalgebra = "0.32"
 lazy_static = "1.4"
@@ -62,7 +62,7 @@ js-sys = "0.3"
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-font_kit = { registry = "yn", version = "=0.1.0" }
+font_kit = { registry = "yn", version = "0.2" }
 pi_sdf = {version = "0.1", registry = "yn"}
 
 [features]
@@ -71,10 +71,10 @@ single_thread = [] # 本地平台，设置该feature有效，运行时为单线�
 web_local_load = []
 
 [patch.yn]
-pi_sdf = {path="../pi_sdf"}
+# pi_sdf = {path="../pi_sdf"}
 # pi_wgpu = {path="../pi_wgpu"}
 
 [patch.crates-io]
-pi_share = {path="../pi_share"}
+# pi_share = {path="../pi_share"}
 
 
