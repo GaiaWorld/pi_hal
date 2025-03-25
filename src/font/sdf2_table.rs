@@ -54,6 +54,8 @@ use super::blur::compute_box_layout;
 use super::blur::BoxInfo;
 use super::font::GlyphSheet;
 use super::sdf_gpu::GPUState;
+use super::text_split::SplitChar;
+use super::text_split::SplitChar2;
 // use super::sdf_gpu::gpu_draw;
 use super::{
     blur::{blur_box, gaussian_blur},
@@ -384,9 +386,16 @@ impl Sdf2Table {
         char: char,
     ) -> Option<GlyphId> {
         // log::error!("glyph_id: {:?}",(&font_id, char));
-        for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
+        for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-                let glyph_index = font_face.glyph_index(char);
+                let mut glyph_index = font_face.glyph_index(char);
+                if glyph_index == 0 {
+                    glyph_index = font_face.glyph_index('□');
+                }
+                if glyph_index == 0 {
+                    glyph_index = font_face.glyph_index(' ');
+                }
+
                 // 字体中存在字符
                 if glyph_index > 0 {
                     match self.glyph_id_map.entry((*font_face_id, glyph_index)) {
@@ -417,8 +426,7 @@ impl Sdf2Table {
                             } = outline_info.compute_layout(FONT_SIZE, PXRANGE, PXRANGE);
                             let offset = self
                                 .index_packer
-                                .alloc(tex_size as usize, tex_size as usize)
-                                .unwrap();
+                                .alloc(tex_size as usize, tex_size as usize)?;
                             let bbox = Aabb::new(
                                 Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                                 Point::new(outline_info.bbox[2], outline_info.bbox[3]),
@@ -468,12 +476,18 @@ impl Sdf2Table {
     ) -> Vec<Option<GlyphId>> {
         // log::error!("glyph_id: {:?}",(&font_id, char));
         let mut glyph_ids = vec![None; text.len()];
-        for (index, font_face_id) in font_info.font_ids.iter().enumerate() {
+        for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                 let glyph_indexs = font_face.glyph_indexs(text, 0);
                 assert_eq!(glyph_indexs.len(), text.chars().count());
                 let mut index = 0;
-                for (glyph_index, char) in glyph_indexs.into_iter().zip(text.chars()){
+                for (mut glyph_index, char) in glyph_indexs.into_iter().zip(text.chars()){
+                    if glyph_index == 0 {
+                        glyph_index = font_face.glyph_index('□');
+                    }
+                    if glyph_index == 0 {
+                        glyph_index = font_face.glyph_index(' ');
+                    }
                     // 字体中存在字符
                     if glyph_index > 0 {
                         match self.glyph_id_map.entry((*font_face_id, glyph_index)) {
@@ -502,10 +516,13 @@ impl Sdf2Table {
                                     tex_size,
                                     ..
                                 } = outline_info.compute_layout(FONT_SIZE, PXRANGE, PXRANGE);
-                                let offset = self
+                                let offset = if let Some(r) = self
                                     .index_packer
-                                    .alloc(tex_size as usize, tex_size as usize)
-                                    .unwrap();
+                                    .alloc(tex_size as usize, tex_size as usize){
+                                        r
+                                    }else{
+                                        continue;
+                                    };
                                 let bbox = Aabb::new(
                                     Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                                     Point::new(outline_info.bbox[2], outline_info.bbox[3]),
@@ -546,6 +563,21 @@ impl Sdf2Table {
             }
         }
         glyph_ids
+    }
+
+    pub fn split<'a>(&mut self, font_id: FontId, font_info: &mut FontInfo, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a>{
+        let glyph_ids = self.glyph_indexs(font_id, font_info, text);
+        let mut i = text.chars();
+        let last = i.next();
+        SplitChar2 {
+            glyph_ids,
+            cur_index: 0,
+            iter: i,
+            word_split: word_split,
+            merge_whitespace: merge_whitespace,
+            last: last,
+            type_id: 0,
+        }
     }
 
     // 字形id
@@ -1476,3 +1508,11 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 // 	pub unicode: u32,        // 字符的unicode编码
 //     pub buffer: Vec<u8>,  // 字符的sdf buffer
 // }
+
+
+#[test]
+fn test (){
+    let data = include_bytes!("../../SOURCEHANSANSK-MEDIUM.ttf").to_vec();
+// 
+    // let 
+}

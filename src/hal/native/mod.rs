@@ -26,7 +26,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use parry2d::shape::Shape;
+// use parry2d::shape::Shape;
 use pi_async_rt::rt::AsyncValue;
 use pi_share::Share;
 
@@ -67,8 +67,8 @@ pub mod svg;
 /// 纹理加载模块
 pub mod image_texture_load;
 
-/// SDF字体处理模块
-pub mod sdf2_info;
+// /// SDF字体处理模块
+// pub mod sdf2_info;
 
 /// 异步操作参数枚举
 #[derive(Debug)]

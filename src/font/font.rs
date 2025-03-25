@@ -26,7 +26,7 @@ use pi_null::Null;
 use pi_atom::Atom;
 use smallvec::SmallVec;
 
-use super::{sdf_table::{FontCfg, MetricsInfo}, tables::FontTable};
+use super::{sdf_table::{FontCfg, MetricsInfo}, tables::FontTable, text_split::{SplitChar, SplitChar2}};
 
 /// 通用尺寸结构体
 /// 
@@ -350,6 +350,16 @@ impl FontMgr {
 		self.table.glyph_id(f, char, font_info, self.font_type)
 	}
 
+	pub fn split<'a>(&mut self, f: FontId, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a> {
+		let font_info = &mut self.sheet.fonts[f.0];
+		self.table.split(f, font_info, self.font_type, text, word_split, merge_whitespace)
+	}
+
+	pub fn glyph_indexs<'a>(&mut self, f: FontId, text: &'a str) -> Vec<Option<GlyphId>>{
+		let font_info = &mut self.sheet.fonts[f.0];
+		self.table.glyph_indexs(f, font_info, self.font_type, text)
+	}
+
 	/// 为字形添加阴影效果
 	/// 
 	/// # 参数
@@ -381,6 +391,18 @@ impl FontMgr {
 			None => return 0.0,
 		};
 		self.table.measure_width(f, font_info, char, self.font_type)
+	}
+
+	/// 测量字符宽度
+	/// 
+	/// # 返回值
+	/// 字符的布局宽度（单位：像素）
+	pub fn measure_width_of_glyph_id(&mut self, f: FontId, glyph_id: GlyphId,) -> f32 {
+		let font_info = match self.sheet.fonts.get_mut(*f) {
+			Some(r) => r,
+			None => return 0.0,
+		};
+		self.table.measure_width_of_glyph_id(f, font_info, glyph_id, self.font_type)
 	}
 
 	/// 获取字形度量信息

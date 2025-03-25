@@ -5,7 +5,7 @@ pub mod sdf_table;
 pub mod sdf2_table;
 pub mod blur;
 pub mod sdf_gpu;
-pub mod bitmap_table;
+// pub mod bitmap_table;
 pub(crate) mod tables;
 
 #[cfg(feature = "create_class_by_str")]

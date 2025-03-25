@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -58,11 +58,12 @@ web-sys = {version = "0.3", features = [
 	"ImageData"
 ]}
 js-sys = "0.3"
+getrandom = {version = "0.3", features = ["wasm_js"]}
 # basis-universal = { path = "F:/project/rust_crates/basis-universal"}
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-font_kit = { registry = "yn", version = "0.2" }
+# font_kit = { registry = "yn", version = "0.2" }
 pi_sdf = {version = "0.1", registry = "yn"}
 
 [features]

@@ -2,14 +2,14 @@
 
 use pi_share::Share;
 use pi_wgpu as wgpu;
-use super::{bitmap_table::BitmapTable, font::{FontFaceId, FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}};
+use super::{/* bitmap_table::BitmapTable, */ font::{FontFaceId, FontId, FontInfo, FontType, GlyphId, GlyphIdDesc, Size, BASE_FONT_SIZE}, sdf2_table::Sdf2Table, sdf_table::{MetricsInfo, SdfTable}, text_split::{SplitChar, SplitChar2}};
 
 /// 字体表管理器，负责管理不同字体渲染方式的存储和查询
 pub struct FontTable {
 	/// 位图字体表，用于处理基于位图的字体渲染
 	/// - Web平台依赖Canvas文字功能
 	/// - 本地平台(app/exe)通常使用freetype实现
-	pub bitmap_table: BitmapTable,
+	// pub bitmap_table: BitmapTable,
 	
 	/// SDF1字体表，用于基于有符号距离场的一代字体渲染
 	pub sdf_table: SdfTable,
@@ -28,7 +28,7 @@ impl FontTable {
 	/// - `queue`: wgpu命令队列共享实例
 	pub fn new(width: usize, height: usize, device: Share<wgpu::Device>, queue: Share<wgpu::Queue>) -> Self {
 		Self {
-			bitmap_table: BitmapTable::new(width, height),
+			// bitmap_table: BitmapTable::new(width, height),
 			sdf_table: SdfTable::new(width, height),
 			sdf2_table: Sdf2Table::new(width, height, device, queue),
 		}
@@ -43,7 +43,7 @@ impl FontTable {
 	/// 返回包含宽度和高度的Size结构体
 	pub fn size(&self, font_type: FontType) -> Size<usize> {
 		match font_type {
-			FontType::Bitmap => Size { width: self.bitmap_table.text_packer.width, height: self.bitmap_table.text_packer.height },
+			FontType::Bitmap => panic!("not surpport bitmap_table!!!"), //Size { width: self.bitmap_table.text_packer.width, height: self.bitmap_table.text_packer.height },
 			FontType::Sdf1 => Size { width: self.sdf_table.text_packer.width, height: self.sdf_table.text_packer.height },
 			FontType::Sdf2 =>  Size { width: self.sdf2_table.index_packer.width, height: self.sdf2_table.index_packer.height },
 		}
@@ -59,7 +59,8 @@ impl FontTable {
 	/// 当前仅对位图字体类型有效
 	pub fn check_or_create_face(& mut self, font: &FontInfo, font_type: FontType) {
 		if font_type == FontType::Bitmap {
-			self.bitmap_table.brush.check_or_create_face(font);
+			panic!("not surpport bitmap_table!!!");
+			// self.bitmap_table.brush.check_or_create_face(font);
 		}
 	}
 
@@ -78,11 +79,12 @@ impl FontTable {
 		} else if font_type == FontType::Sdf2 {
 			self.sdf2_table.height(font)
 		} else {
-			let mut r = self.bitmap_table.brush.base_height(font);
-			log::warn!("height======={:?}, {:?}", r, font);
-			// max_height, todo
-			r = font.font.font_size as f32 / BASE_FONT_SIZE as f32 * r;
-			(r, r)
+			panic!("not surpport bitmap_table!!!")
+			// let mut r = self.bitmap_table.brush.base_height(font);
+			// log::warn!("height======={:?}, {:?}", r, font);
+			// // max_height, todo
+			// r = font.font.font_size as f32 / BASE_FONT_SIZE as f32 * r;
+			// (r, r)
 		}
 	}
 	
@@ -104,6 +106,23 @@ impl FontTable {
 			self.sdf_table.width(font, char).0
 		} else if font_type == FontType::Sdf2 {
 			self.sdf2_table.width(f, font, char).0
+		} else {
+			// let base_w = self.bitmap_table.brush.base_width( font, char);
+			// let ratio = font.font.font_size as f32 / BASE_FONT_SIZE as f32;
+			// let r = ratio * base_w.0 + *font.font.stroke;
+
+			// log::warn!("width======={:?}, {:?}, {:?}, {:?}", base_w, char, r, font);
+			// r
+			todo!()
+		}
+	}
+
+	pub fn measure_width_of_glyph_id(&mut self, f: FontId, font: &mut FontInfo,  glyph_id: GlyphId, font_type: FontType) -> f32 {
+		if font_type == FontType::Sdf1 {
+			// self.sdf_table.width(font, char).0
+			panic!("not surpport sdf1");
+		} else if font_type == FontType::Sdf2 {
+			self.sdf2_table.width_of_glyph_id(f, font, glyph_id)
 		} else {
 			// let base_w = self.bitmap_table.brush.base_width( font, char);
 			// let ratio = font.font.font_size as f32 / BASE_FONT_SIZE as f32;
@@ -183,7 +202,8 @@ impl FontTable {
 	pub fn glyph_id(&mut self, f: FontId, char: char, font_info: &mut FontInfo, font_type: FontType) -> Option<GlyphId> {
 		match font_type {
 			FontType::Bitmap => {
-				self.bitmap_table.glyph_id(f, font_info, char)
+				panic!("not surpport bitmap_table!!!")
+				// self.bitmap_table.glyph_id(f, font_info, char)
 			},
 			FontType::Sdf1 => {
 				self.sdf_table.glyph_id(f, font_info, char)
@@ -191,6 +211,34 @@ impl FontTable {
 			FontType::Sdf2 => self.sdf2_table.glyph_id(f, font_info, char),
 		}
 	}
+
+	/// 劈分字符串并取得每个字符的字形id, 返回字符迭代器
+	pub fn split<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a> {
+		match font_type {
+			FontType::Bitmap => {
+				panic!("not surpport bitmap_table!!!")
+				// self.bitmap_table.glyph_id(f, font_info, char)
+			},
+			FontType::Sdf1 => {
+				panic!("not surpport sdf1!!!")
+			},
+			FontType::Sdf2 => self.sdf2_table.split(f, font_info, text, word_split, merge_whitespace),
+		}
+	}
+
+	pub fn glyph_indexs<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str) -> Vec<Option<GlyphId>> {
+		match font_type {
+			FontType::Bitmap => {
+				panic!("not surpport bitmap_table!!!")
+				// self.bitmap_table.glyph_id(f, font_info, char)
+			},
+			FontType::Sdf1 => {
+				panic!("not surpport sdf1!!!")
+			},
+			FontType::Sdf2 => self.sdf2_table.glyph_indexs(f, font_info, text),
+		}
+	}
+	
 
 	/// 清空所有字体表内容
 	/// 

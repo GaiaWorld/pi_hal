@@ -11,7 +11,7 @@ pub mod svg;
 #[cfg(feature="web_local_load")]
 pub mod web_local;
 pub mod image_texture_load;
-pub mod sdf2_info;
+// pub mod sdf2_info;
 
 #[wasm_bindgen(module = "/js/utils.js")]
 extern "C" {
