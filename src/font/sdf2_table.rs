@@ -312,7 +312,10 @@ impl Sdf2Table {
     // 文字宽度
     pub fn width(&mut self, font_id: FontId, font: &mut FontInfo, char: char) -> (f32, GlyphId) {
         if let Some(glyph_id) = self.glyph_id(font_id, font, char) {
-            if !glyph_id.0.is_null() && self.glyphs[glyph_id.0].font_face_index.is_null() {
+            if glyph_id.0.is_null(){
+                return (font.font.font_size as f32 * 0.5, glyph_id,);
+            }
+            if self.glyphs[glyph_id.0].font_face_index.is_null() {
                 for (index, font_id) in font.font_ids.iter().enumerate() {
                     if let Some(r) = self.fonts.get_mut(font_id.0) {
                         let horizontal_advance = r.horizontal_advance(char);
@@ -335,7 +338,7 @@ impl Sdf2Table {
                 }
             } else {
                 return (
-                     font.font.font_size as f32 * 0.5,
+                    self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32,
                     glyph_id,
                 );
             }
