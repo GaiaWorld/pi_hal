@@ -213,7 +213,7 @@ impl FontTable {
 	}
 
 	/// 劈分字符串并取得每个字符的字形id, 返回字符迭代器
-	pub fn split<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a> {
+	pub fn split<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str, word_split: bool, merge_whitespace: bool, is_reverse: bool) -> SplitChar2<'a> {
 		match font_type {
 			FontType::Bitmap => {
 				panic!("not surpport bitmap_table!!!")
@@ -222,11 +222,11 @@ impl FontTable {
 			FontType::Sdf1 => {
 				panic!("not surpport sdf1!!!")
 			},
-			FontType::Sdf2 => self.sdf2_table.split(f, font_info, text, word_split, merge_whitespace),
+			FontType::Sdf2 => self.sdf2_table.split(f, font_info, text, word_split, merge_whitespace, is_reverse),
 		}
 	}
 
-	pub fn glyph_indexs<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str) -> Vec<Option<GlyphId>> {
+	pub fn glyph_indexs<'a>(&mut self, f: FontId, font_info: &mut FontInfo, font_type: FontType, text: &'a str, is_reverse: bool) -> (String,Vec<Option<GlyphId>>) {
 		match font_type {
 			FontType::Bitmap => {
 				panic!("not surpport bitmap_table!!!")
@@ -235,7 +235,7 @@ impl FontTable {
 			FontType::Sdf1 => {
 				panic!("not surpport sdf1!!!")
 			},
-			FontType::Sdf2 => self.sdf2_table.glyph_indexs(f, font_info, text),
+			FontType::Sdf2 => self.sdf2_table.glyph_indexs(f, font_info, text, is_reverse),
 		}
 	}
 	

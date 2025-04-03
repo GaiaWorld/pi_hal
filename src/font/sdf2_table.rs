@@ -7,6 +7,7 @@
 //! - 多线程异步渲染管线
 //! - GPU加速计算
 
+use crate::font::text_split::text_split;
 use crate::font_brush::CellInfo;
 use crate::font_brush::LayoutInfo;
 use ordered_float::NotNan;
@@ -18,6 +19,7 @@ use pi_hash::XHashMap;
 use pi_null::Null;
 use crate::font_brush::OutlineInfo;
 use pi_wgpu as wgpu;
+use std::char;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 /// 用圆弧曲线模拟字符轮廓，并用于计算距离值的方案
@@ -310,7 +312,7 @@ impl Sdf2Table {
     // 文字宽度
     pub fn width(&mut self, font_id: FontId, font: &mut FontInfo, char: char) -> (f32, GlyphId) {
         if let Some(glyph_id) = self.glyph_id(font_id, font, char) {
-            if self.glyphs[glyph_id.0].font_face_index.is_null() {
+            if !glyph_id.0.is_null() && self.glyphs[glyph_id.0].font_face_index.is_null() {
                 for (index, font_id) in font.font_ids.iter().enumerate() {
                     if let Some(r) = self.fonts.get_mut(font_id.0) {
                         let horizontal_advance = r.horizontal_advance(char);
@@ -333,7 +335,7 @@ impl Sdf2Table {
                 }
             } else {
                 return (
-                    self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32,
+                     font.font.font_size as f32 * 0.5,
                     glyph_id,
                 );
             }
@@ -344,12 +346,16 @@ impl Sdf2Table {
 
     // 文字宽度
     pub fn width_of_glyph_id(&mut self, font_id: FontId, font: &mut FontInfo, glyph_id: GlyphId) -> f32 {
+        if glyph_id.0.is_null(){
+            return  0.5 * font.font.font_size as f32;
+        }
         let glyph = &mut self.glyphs[glyph_id.0];
         if glyph.font_face_index.is_null() {
             for (index, font_id) in font.font_ids.iter().enumerate() {
                 if let Some(r) = self.fonts.get_mut(font_id.0) {
                     
                     let horizontal_advance = r.horizontal_advance_of_glyph_index(glyph.glyph_index);
+                    // println!("======= {} width: {}", glyph.char, horizontal_advance);
                     if horizontal_advance >= 0.0 {
                         glyph.font_face_index = index;
                         log::debug!(
@@ -367,11 +373,8 @@ impl Sdf2Table {
                     }
                 };
             }
-        } else {
-            return self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32;
         }
-        0.0
-        
+        return  self.glyphs[glyph_id.0].glyph.advance * font.font.font_size as f32;
     }
 
     pub fn glyph_id_desc(&self, glyph_id: GlyphId) -> &GlyphIdDesc {
@@ -389,10 +392,13 @@ impl Sdf2Table {
         for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                 let mut glyph_index = font_face.glyph_index(char);
+                let mut char = char;
                 if glyph_index == 0 {
+                    char = '□';
                     glyph_index = font_face.glyph_index('□');
                 }
                 if glyph_index == 0 {
+                    char = ' ';
                     glyph_index = font_face.glyph_index(' ');
                 }
 
@@ -461,6 +467,8 @@ impl Sdf2Table {
                             return Some(id);
                         }
                     };
+                } else {
+                    return Some(GlyphId(DefaultKey::null()));
                 }
             }
         }
@@ -473,19 +481,24 @@ impl Sdf2Table {
         font_id: FontId,
         font_info: &mut FontInfo,
         text: &str,
-    ) -> Vec<Option<GlyphId>> {
+        is_reverse: bool
+    ) -> (String,Vec<Option<GlyphId>> ){
         // log::error!("glyph_id: {:?}",(&font_id, char));
         let mut glyph_ids = vec![None; text.len()];
+        let mut str = text.to_string();
         for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-                let glyph_indexs = font_face.glyph_indexs(text, 0);
+                str = text_split(text, is_reverse);
+                let glyph_indexs = font_face.glyph_indexs(&str, 0);
                 assert_eq!(glyph_indexs.len(), text.chars().count());
                 let mut index = 0;
-                for (mut glyph_index, char) in glyph_indexs.into_iter().zip(text.chars()){
+                for (mut glyph_index, mut char) in glyph_indexs.into_iter().zip(text.chars()){
                     if glyph_index == 0 {
+                        char = '□';
                         glyph_index = font_face.glyph_index('□');
                     }
                     if glyph_index == 0 {
+                        char = ' ';
                         glyph_index = font_face.glyph_index(' ');
                     }
                     // 字体中存在字符
@@ -557,23 +570,26 @@ impl Sdf2Table {
                                 glyph_ids[index] = Some(id);
                             }
                         };
+                    } else {
+                        glyph_ids[index] = Some(GlyphId(DefaultKey::null()));
                     }
                     index += 1;
                 }
             }
         }
-        glyph_ids
+        (str, glyph_ids)
     }
 
-    pub fn split<'a>(&mut self, font_id: FontId, font_info: &mut FontInfo, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a>{
-        let glyph_ids = self.glyph_indexs(font_id, font_info, text);
+    pub fn split<'a>(&mut self, font_id: FontId, font_info: &mut FontInfo, text: &'a str, word_split: bool, merge_whitespace: bool, is_reverse: bool) -> SplitChar2<'a>{
+        let (text2, glyph_ids) = self.glyph_indexs(font_id, font_info, text, is_reverse);
         let mut i = text.chars();
         let last = i.next();
         SplitChar2 {
+            text: text2.chars().collect::<Vec<char>>(),
             glyph_ids,
             cur_index: 0,
             iter: i,
-            word_split: word_split,
+            word_split,
             merge_whitespace: merge_whitespace,
             last: last,
             type_id: 0,
@@ -1512,7 +1528,7 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
 
 #[test]
 fn test (){
-    let data = include_bytes!("../../SOURCEHANSANSK-MEDIUM.ttf").to_vec();
+    // let data = include_bytes!("../../SOURCEHANSANSK-MEDIUM.ttf").to_vec();
 // 
     // let 
 }

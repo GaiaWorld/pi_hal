@@ -350,14 +350,14 @@ impl FontMgr {
 		self.table.glyph_id(f, char, font_info, self.font_type)
 	}
 
-	pub fn split<'a>(&mut self, f: FontId, text: &'a str, word_split: bool, merge_whitespace: bool) -> SplitChar2<'a> {
+	pub fn split<'a>(&mut self, f: FontId, text: &'a str, word_split: bool, merge_whitespace: bool, is_reverse: bool) -> SplitChar2<'a> {
 		let font_info = &mut self.sheet.fonts[f.0];
-		self.table.split(f, font_info, self.font_type, text, word_split, merge_whitespace)
+		self.table.split(f, font_info, self.font_type, text, word_split, merge_whitespace, is_reverse)
 	}
 
-	pub fn glyph_indexs<'a>(&mut self, f: FontId, text: &'a str) -> Vec<Option<GlyphId>>{
+	pub fn glyph_indexs<'a>(&mut self, f: FontId, text: &'a str, is_reverse: bool) -> (String, Vec<Option<GlyphId>>){
 		let font_info = &mut self.sheet.fonts[f.0];
-		self.table.glyph_indexs(f, font_info, self.font_type, text)
+		self.table.glyph_indexs(f, font_info, self.font_type, text, is_reverse)
 	}
 
 	/// 为字形添加阴影效果
