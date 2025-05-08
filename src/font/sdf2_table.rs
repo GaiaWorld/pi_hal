@@ -486,16 +486,25 @@ impl Sdf2Table {
         text: &str,
         is_reverse: bool
     ) -> (String,Vec<Option<GlyphId>> ){
-        // log::error!("glyph_id: {:?}",(&font_id, char));
+        log::error!("glyph_indexs: {:?}",(&font_id, text));
         let mut glyph_ids = vec![None; text.len()];
         let mut str = text.to_string();
+        // if 
+        let mut is_loop = true;
         for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
+            if !is_loop {
+                break;
+            }
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
+                log::error!("========= text_split: {}, is_reverse: {}", text, is_reverse);
                 str = text_split(text, is_reverse);
+                
                 let glyph_indexs = font_face.glyph_indexs(&str, 0);
+                log::error!("========= glyph_indexs2: {:?}, is_reverse: {}", glyph_indexs, str);
                 assert_eq!(glyph_indexs.len(), text.chars().count());
                 let mut index = 0;
                 for (mut glyph_index, mut char) in glyph_indexs.into_iter().zip(text.chars()){
+                    log::error!("========= glyph_index: {}, char: {}", glyph_index, char);
                     if glyph_index == 0 {
                         char = '□';
                         glyph_index = font_face.glyph_index('□');
@@ -510,6 +519,9 @@ impl Sdf2Table {
                             Entry::Occupied(r) => {
                                 let id = r.get().clone();
                                 glyph_ids[index] = Some(id);
+                                if is_loop {
+                                    is_loop = false;
+                                }
                             }
                             Entry::Vacant(r) => {
                                 // 分配GlyphId
@@ -571,12 +583,16 @@ impl Sdf2Table {
                                 }
                                 let _ = r.insert(id).clone();
                                 glyph_ids[index] = Some(id);
+                                if is_loop {
+                                    is_loop = false;
+                                }
                             }
                         };
                     } else {
                         glyph_ids[index] = Some(GlyphId(DefaultKey::null()));
                     }
                     index += 1;
+                    
                 }
             }
         }
