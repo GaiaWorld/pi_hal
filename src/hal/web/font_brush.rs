@@ -407,7 +407,7 @@ impl Drop for FontFace {
 pub async fn load_font_sdf() -> Vec<(String, Vec<SdfInfo>)> {
     let data = loadFontSdf().await;
     let data = js_sys::Uint8Array::from(data).to_vec();
-    log::error!("sdf data size: {}", data.len());
+    log::debug!("sdf data size: {}", data.len());
     bitcode::deserialize(&data[..]).unwrap()
 }
 pub struct CellInfo;

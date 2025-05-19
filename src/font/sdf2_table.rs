@@ -486,7 +486,7 @@ impl Sdf2Table {
         text: &str,
         is_reverse: bool
     ) -> (String,Vec<Option<GlyphId>> ){
-        log::error!("glyph_indexs: {:?}",(&font_id, text));
+        log::debug!("glyph_indexs: {:?}",(&font_id, text));
         let mut glyph_ids = vec![None; text.len()];
         let mut str = text.to_string();
         // if 
@@ -496,15 +496,15 @@ impl Sdf2Table {
                 break;
             }
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-                log::error!("========= text_split: {}, is_reverse: {}", text, is_reverse);
+                log::debug!("========= text_split: {}, is_reverse: {}", text, is_reverse);
                 str = text_split(text, is_reverse);
                 
                 let glyph_indexs = font_face.glyph_indexs(&str, 0);
-                log::error!("========= glyph_indexs2: {:?}, is_reverse: {}", glyph_indexs, str);
+                log::debug!("========= glyph_indexs2: {:?}, is_reverse: {}", glyph_indexs, str);
                 assert_eq!(glyph_indexs.len(), text.chars().count());
                 let mut index = 0;
                 for (mut glyph_index, mut char) in glyph_indexs.into_iter().zip(text.chars()){
-                    log::error!("========= glyph_index: {}, char: {}", glyph_index, char);
+                    log::debug!("========= glyph_index: {}, char: {}", glyph_index, char);
                     if glyph_index == 0 {
                         char = '□';
                         glyph_index = font_face.glyph_index('□');
@@ -749,9 +749,9 @@ impl Sdf2Table {
         pxrang: u32,
         cut_off: u32,
     ) {
-        log::error!("======== add_shape");
+        log::debug!("======== add_shape");
         if self.shapes_tex_info.get(&hash).is_some(){
-            log::error!("======== add_shape: is have!!1");
+            log::debug!("======== add_shape: is have!!1");
             return;
         }
         let info2 = info.compute_layout(tex_size, pxrang, cut_off);
