@@ -490,7 +490,7 @@ impl Sdf2Table {
         text: &str,
         is_reverse: bool
     ) -> (String,Vec<Option<GlyphId>> ){
-        log::error!("glyph_indexs: {:?}",(&font_id, text));
+        log::debug!("glyph_indexs: {:?}",(&font_id, text));
         let mut glyph_ids = vec![None; text.len()];
         let mut str = text.to_string();
         // if 
@@ -753,9 +753,9 @@ impl Sdf2Table {
         pxrang: u32,
         cut_off: u32,
     ) {
-        log::error!("======== add_shape");
+        log::debug!("======== add_shape");
         if self.shapes_tex_info.get(&hash).is_some(){
-            log::error!("======== add_shape: is have!!1");
+            log::debug!("======== add_shape: is have!!1");
             return;
         }
         let info2 = info.compute_layout(tex_size, pxrang, cut_off);
