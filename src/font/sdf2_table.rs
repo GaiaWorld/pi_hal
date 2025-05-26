@@ -318,7 +318,7 @@ impl Sdf2Table {
             if self.glyphs[glyph_id.0].font_face_index.is_null() {
                 for (index, font_id) in font.font_ids.iter().enumerate() {
                     if let Some(r) = self.fonts.get_mut(font_id.0) {
-                        let horizontal_advance = r.horizontal_advance(char);
+                        let horizontal_advance = r.horizontal_advance(self.glyphs[glyph_id.0].char);
                         if horizontal_advance >= 0.0 {
                             self.glyphs[glyph_id.0].font_face_index = index;
                             log::debug!(
@@ -397,6 +397,9 @@ impl Sdf2Table {
                 let mut glyph_index = font_face.glyph_index(char);
                 let mut char = char;
                 if glyph_index == 0 {
+                    log::warn!("{:?} is not have {}", font_info.font.font_family_string.as_str(), char);
+                }
+                if glyph_index == 0 {
                     char = '□';
                     glyph_index = font_face.glyph_index('□');
                 }
@@ -471,6 +474,7 @@ impl Sdf2Table {
                         }
                     };
                 } else {
+                    log::warn!("{:?} is not have ' ' or '□'", font_info.font.font_family_string.as_str());
                     return Some(GlyphId(DefaultKey::null()));
                 }
             }
@@ -496,15 +500,15 @@ impl Sdf2Table {
                 break;
             }
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
-                log::error!("========= text_split: {}, is_reverse: {}", text, is_reverse);
+                log::debug!("========= text_split: {}, is_reverse: {}", text, is_reverse);
                 str = text_split(text, is_reverse);
                 
                 let glyph_indexs = font_face.glyph_indexs(&str, 0);
-                log::error!("========= glyph_indexs2: {:?}, is_reverse: {}", glyph_indexs, str);
+                log::debug!("========= glyph_indexs2: {:?}, is_reverse: {}", glyph_indexs, str);
                 assert_eq!(glyph_indexs.len(), text.chars().count());
                 let mut index = 0;
                 for (mut glyph_index, mut char) in glyph_indexs.into_iter().zip(text.chars()){
-                    log::error!("========= glyph_index: {}, char: {}", glyph_index, char);
+                    log::debug!("========= glyph_index: {}, char: {}", glyph_index, char);
                     if glyph_index == 0 {
                         char = '□';
                         glyph_index = font_face.glyph_index('□');

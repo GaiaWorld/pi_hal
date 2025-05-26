@@ -46,6 +46,17 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
 		panic!("unimplemented load, {:?}", desc.url.as_str());
 	};
 
+	// webgpu 测试用
+	// let ctx = match loadImage(id).await {
+	// 	Ok(r) => web_sys::CanvasRenderingContext2d::from(r),
+	// 	Err(e) => return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("{:?}", e))))
+	// };
+	// let canvas = ctx.canvas().unwrap();
+	// let img_data = match ctx.get_image_data(0.0, 0.0, canvas.width() as f64, canvas.height() as f64) {
+	// 	Ok(r) => r,
+	// 	Err(e) => return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("{:?}", e)))),
+	// };
+	// let (width, height) = (img_data.width(), img_data.height());
 	let image = match loadImage(id).await {
 		Ok(r) => web_sys::HtmlImageElement::from(r),
 		Err(e) => return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("{:?}", e))))
@@ -69,6 +80,20 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
 		usage: desc.useage,
 		view_formats: &[],
 	});
+
+	// webgpu 测试用
+	// let data = img_data.data().0;
+	// log::error!("===============image {:?}", (width, height, data.len()));
+	// queue.write_texture(
+	// 	texture.as_image_copy(),
+	// 	&data,
+	// 	wgpu::ImageDataLayout {
+    //         offset: 0,
+    //         bytes_per_row: Some(width as u32 * 4),
+    //         rows_per_image: None,
+    //     },
+	// 	texture_extent,
+	// );
 
 	queue.copy_external_image_to_texture(
 		&ImageCopyExternalImage{
@@ -126,6 +151,8 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 
 			log::debug!("create_texture_from_ktx, width====={:?}, height==={:?}", texture_extent.width, texture_extent.height);
 
+			// webgpu 测试用
+			// return Err(ImageError::IoError(std::io::Error::new(ErrorKind::InvalidFilename, format!("not surpport"))));
 			let texture = device.create_compress_texture_with_data_jsdata(queue, &wgpu::TextureDescriptor {
 				label: Some("ktx texture"),
 				size: texture_extent,
