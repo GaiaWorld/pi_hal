@@ -85,7 +85,7 @@ static GPU: RwLock<Option<GPUState>> = RwLock::new(None);
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
-pub static PXRANGE: u32 = 10 / 2;
+pub static PXRANGE: u32 = 7;
 // /// 二维装箱
 // pub struct Packer2D {
 
