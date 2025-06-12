@@ -103,7 +103,7 @@ impl GPUState {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &vs,
-                entry_point: "main",
+                entry_point: Some("main"),
                 buffers: &[
                     wgpu::VertexBufferLayout {
                         array_stride: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
@@ -124,18 +124,27 @@ impl GPUState {
                         }],
                     },
                 ],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &[],
+                    zero_initialize_workgroup_memory: true,
+                },
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fs,
-                entry_point: "main",
+                entry_point: Some("main"),
                 targets: &[Some(wgpu::ColorTargetState::from(
                     wgpu::TextureFormat::R8Unorm,
                 ))],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &[],
+                    zero_initialize_workgroup_memory: true,
+                },
             }),
             primitive,
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
 
         Self {
