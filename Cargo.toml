@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 bytemuck = { version = "1.4", features = [ "derive" ] }
 pi_time = "0.5"
-pi_wgpu = { version = "0.2", registry = "yn"}
+pi_wgpu = { version = "0.3", registry = "yn"}
 ktx = "0.3"
 # pi_share = {version="0.4", features=["serial"]}
 smallvec = { version = "1.8", features = ["serde"] }
