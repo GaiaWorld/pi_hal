@@ -85,7 +85,7 @@ static GPU: RwLock<Option<GPUState>> = RwLock::new(None);
 static INTI_STROE: AtomicBool = AtomicBool::new(false);
 static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
-// pub static PXRANGE: u32 = 7;
+pub static PXRANGE: u32 = 7;
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -96,21 +96,6 @@ pub fn sdf_font_size(_font_size: usize) -> usize {
     FONT_SIZE
 }
 
-// 拓展0.5个单位防止采样到边
-static EXPAND: f32 = 0.5;
-// 超出5，以step步进增加
-static STEP: f32 = 3.0;
-pub fn compute_px_range(font_info: &FontInfo) -> u32 {
-    let pxrange = f32::from(font_info.font.stroke) / font_info.font.font_size as f32 * FONT_SIZE as f32 + EXPAND;
-    let pxrange = if pxrange < 5.0 {
-         5
-    } else {
-        (((pxrange - 5.0) / STEP).ceil() * STEP + 5.0).round() as u32
-    };
-    log::error!("compute_px_range: stroke: {:?}, font_size: {}", font_info.font.stroke, font_info.font.font_size);
-    pxrange
-}
-
 pub struct Sdf2Table {
     pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontFaceId
     pub metrics: SecondaryMap<DefaultKey, MetricsInfo>, // DefaultKey为FontFaceId
@@ -118,12 +103,12 @@ pub struct Sdf2Table {
     // text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
     // blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
-    glyph_id_map: XHashMap<(FontFaceId, u16, u32), GlyphId>,
+    glyph_id_map: XHashMap<(FontFaceId, u16), GlyphId>,
     pub glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 
     pub(crate) index_packer: TextPacker,
     pub data_packer: TextPacker,
-    pub outline_info: XHashMap<(DefaultKey, u16, u32), OutlineInfo>,
+    pub outline_info: XHashMap<(DefaultKey, u16), OutlineInfo>,
 
     // 字体阴影参数， u32: 模糊半径; NotNan<f32>: 粗体正常和细体
     pub font_shadow: XHashMap<GlyphId, Vec<(u32, NotNan<f32>)>>,
@@ -264,7 +249,7 @@ impl Sdf2Table {
             font_id.0,
             MetricsInfo {
                 font_size: FONT_SIZE as f32,
-                distance_range: 0.0 as f32,
+                distance_range: PXRANGE as f32,
                 line_height: height,
                 max_height: height,
                 ascender: ascender,
@@ -425,9 +410,7 @@ impl Sdf2Table {
 
                 // 字体中存在字符
                 if glyph_index > 0 {
-                    let pxrange = compute_px_range(font_info);
-                    log::error!("compute_px_range: char: {}, font_size: {}, stroke_width: {}", char, font_info.font.font_size, font_info.font.stroke);
-                    match self.glyph_id_map.entry((*font_face_id, glyph_index, pxrange)) {
+                    match self.glyph_id_map.entry((*font_face_id, glyph_index)) {
                         Entry::Occupied(r) => {
                             let id = r.get().clone();
                             return Some(id);
@@ -452,7 +435,7 @@ impl Sdf2Table {
                                 atlas_bounds,
                                 tex_size,
                                 ..
-                            } = outline_info.compute_layout(FONT_SIZE, pxrange, pxrange);
+                            } = outline_info.compute_layout(FONT_SIZE, PXRANGE, PXRANGE);
                             let offset = self
                                 .index_packer
                                 .alloc(tex_size as usize, tex_size as usize)?;
@@ -479,7 +462,7 @@ impl Sdf2Table {
                             self.glyphs[id.0].glyph = glyph;
 
                             self.outline_info
-                                .insert((font_face_id.0, glyph_index, pxrange), outline_info);
+                                .insert((font_face_id.0, glyph_index), outline_info);
 
                             if !char.is_whitespace() {
                                 // 不是空白符， 才需要放入等待队列
@@ -536,9 +519,7 @@ impl Sdf2Table {
                     }
                     // 字体中存在字符
                     if glyph_index > 0 {
-                        let pxrange = compute_px_range(font_info);
-                        log::error!("compute_px_range: char: {}, font_size: {}, stroke_width: {}", char, font_info.font.font_size, font_info.font.stroke);
-                        match self.glyph_id_map.entry((*font_face_id, glyph_index, pxrange)) {
+                        match self.glyph_id_map.entry((*font_face_id, glyph_index)) {
                             Entry::Occupied(r) => {
                                 let id = r.get().clone();
                                 glyph_ids[index] = Some(id);
@@ -566,7 +547,7 @@ impl Sdf2Table {
                                     atlas_bounds,
                                     tex_size,
                                     ..
-                                } = outline_info.compute_layout(FONT_SIZE, pxrange, pxrange);
+                                } = outline_info.compute_layout(FONT_SIZE, PXRANGE, PXRANGE);
                                 let offset = if let Some(r) = self
                                     .index_packer
                                     .alloc(tex_size as usize, tex_size as usize){
@@ -597,7 +578,7 @@ impl Sdf2Table {
                                 self.glyphs[id.0].glyph = glyph;
 
                                 self.outline_info
-                                    .insert((font_face_id.0, glyph_index, pxrange), outline_info);
+                                    .insert((font_face_id.0, glyph_index), outline_info);
 
                                 if !char.is_whitespace() {
                                     // 不是空白符， 才需要放入等待队列
@@ -615,6 +596,7 @@ impl Sdf2Table {
                         glyph_ids[index] = Some(GlyphId(DefaultKey::null()));
                     }
                     index += 1;
+                    
                 }
             }
         }
@@ -650,8 +632,7 @@ impl Sdf2Table {
             let c = &self.glyphs[id.0];
             let font_face_id = font_info.font_ids[c.font_face_index];
             println!("add_font_shadow ============={:?}", (c.font_id.0, c.char));
-            let pxrange = compute_px_range(font_info);
-            let outline_info = self.outline_info.get(&(font_face_id.0, c.glyph_index, pxrange)).unwrap();
+            let outline_info = self.outline_info.get(&(font_face_id.0, c.glyph_index)).unwrap();
 
             let LayoutInfo {
                 atlas_bounds,
@@ -659,7 +640,7 @@ impl Sdf2Table {
                 ..
             } = outline_info.compute_layout(
                 FONT_SIZE,
-                pxrange,
+                PXRANGE,
                 (radius as f32 + f32::from(weight) * 3.0) as u32 + 2,
             );
             let offset = self
@@ -701,8 +682,7 @@ impl Sdf2Table {
             println!("add_font_outer_glow======={:?}", range);
             let c = &self.glyphs[id.0];
             let font_face_id = font_info.font_ids[c.font_face_index];
-            let pxrange = compute_px_range(font_info);
-            let outline_info = self.outline_info.get(&(font_face_id.0, c.glyph_index, pxrange)).unwrap();
+            let outline_info = self.outline_info.get(&(font_face_id.0, c.glyph_index)).unwrap();
 
             let LayoutInfo {
                 atlas_bounds,
@@ -780,6 +760,21 @@ impl Sdf2Table {
         }
         let info2 = info.compute_layout(tex_size, pxrang, cut_off);
 
+        // let mut texinfo = TexInfo2 {
+        //     sdf_offset_x: 0,
+        //     sdf_offset_y: 0,
+        //     advance: 0.0,
+        //     char: ' ',
+        //     plane_min_x: info2[0],
+        //     plane_min_y: info2[1],
+        //     plane_max_x: info2[2],
+        //     plane_max_y: info2[3],
+        //     atlas_min_x: info2[4],
+        //     atlas_min_y: info2[5],
+        //     atlas_max_x: info2[6],
+        //     atlas_max_y: info2[7],
+        // };
+        // let index_packer: &'static mut TextPacker = unsafe { transmute(&mut self.index_packer) };
         let index_position = self
             .index_packer
             .alloc(info2.tex_size as usize, info2.tex_size as usize)
@@ -942,7 +937,6 @@ impl Sdf2Table {
         // 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
         if await_count.load(Ordering::Relaxed) != 0 {
             for (_, font_info) in sheet.fonts.iter_mut() {
-                let pxrange = compute_px_range(font_info);
                 let await_info = &mut font_info.await_info;
                 if await_info.wait_list.len() == 0 {
                     continue;
@@ -970,12 +964,11 @@ impl Sdf2Table {
 
                         let font_name = &sheet.font_names[font_face_id.0];
                         outline_infos.push((
-                            self.outline_info.remove(&(font_face_id.0, g.glyph_index, pxrange)).expect(&format!("font_face_id.0: {:?}, g.char: {}, glyph_id: {:?}, self: {:?}, not in outline_info!!!", font_face_id.0, g.char, glyph_id, 1)),
+                            self.outline_info.remove(&(font_face_id.0, g.glyph_index)).expect(&format!("font_face_id.0: {:?}, g.char: {}, glyph_id: {:?}, self: {:?}, not in outline_info!!!", font_face_id.0, g.char, glyph_id, 1)),
                             font_face_id.0,
                             glyph_id,
                             is_outer_glow,
                             shadow,
-                            pxrange
                         )); // 先取到贝塞尔曲线
                         keys.push(format!("{}{}", g.char, font_name));
                         chars.push(g.char)
@@ -989,132 +982,150 @@ impl Sdf2Table {
 
         let mut ll = 0;
 
-        // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-        let mut index = 0;
-        for glyph_visitor in outline_infos.drain(..) {
-            let async_value1 = async_value.clone();
-            let result = result.clone();
-            // println!("encode_data_tex===={:?}", index);
-            let await_count = await_count.clone();
-            let char = chars[index];
-            index += 1;
-            let key = keys[ll].clone();
-            MULTI_MEDIA_RUNTIME
-                .spawn(async move {
-                    let mut crach_info = None;
-                    {
-                        let mut sdf_map = SDF_FONT.lock().unwrap();
-                        if sdf_map.is_some()
-                            && let Some(buffer) = sdf_map.as_mut().unwrap().remove(&key)
-                        {
-                            #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+        // let temp_value = async_value.clone();
+        // log::error!("================ draw text: {:?}",keys);
+        // MULTI_MEDIA_RUNTIME
+        //     .spawn(async move {
+                // if !INTI_STROE.load(Ordering::Relaxed) {
+                //     log::error!("=============存储未初始化");
+                //     let async_value3 = AsyncValue::new();
+                //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                //     async_value3.await;
+                // }
+                // log::error!("encode_data_texxxx===={:?}, {:?}, {:?}, {:?}", index, ll, await_count, chars);
+                // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+                let mut index = 0;
+                for glyph_visitor in outline_infos.drain(..) {
+                    let async_value1 = async_value.clone();
+                    let result = result.clone();
+                    // println!("encode_data_tex===={:?}", index);
+                    let await_count = await_count.clone();
+                    let char = chars[index];
+                    index += 1;
+                    let key = keys[ll].clone();
+                    MULTI_MEDIA_RUNTIME
+                        .spawn(async move {
+                            let mut crach_info = None;
                             {
-                                crach_info =
-                                    Some(bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap());
+                                let mut sdf_map = SDF_FONT.lock().unwrap();
+                                if sdf_map.is_some()
+                                    && let Some(buffer) = sdf_map.as_mut().unwrap().remove(&key)
+                                {
+                                    #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                    {
+                                        crach_info = Some(
+                                            bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap(),
+                                        );
+                                    }
+
+                                    #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                    {
+                                        crach_info = Some(buffer);
+                                    }
+                                }
                             }
 
-                            #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                            {
-                                crach_info = Some(buffer);
+                            let result_arcs = if let Some(info) = crach_info {
+                                info
+                            } else if let Some(buffer) = stroe::get(key.clone()).await {
+                                #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                {
+                                    bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap()
+                                }
+
+                                #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                buffer
+                            } else {
+                                #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
+                                {
+                                    let arcs = glyph_visitor.0.compute_near_arcs(2.0);
+                                    let buffer = bitcode::serialize(&arcs).unwrap();
+                                    stroe::write(key, buffer).await;
+                                    arcs
+                                }
+
+                                #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
+                                {
+                                    let buffer = glyph_visitor.0.compute_near_arcs(1.0).await;
+                                    stroe::write(key, buffer.clone()).await;
+                                    buffer
+                                }
+                            };
+                            // log::error!("computer char {}, time: {:?}. glyph_id: {:?}", char, time.elapsed(), glyph_visitor.2);
+                            let lock = &mut result.0.lock().unwrap().font_result;
+                            let mut sdf = glyph_visitor.0.compute_sdf_tex(
+                                result_arcs.clone(),
+                                FONT_SIZE,
+                                PXRANGE,
+                                false,
+                                PXRANGE,
+                            );
+                            sdf.tex_info.char = char;
+                            // log::error!("char: {:?}", sdf.tex_info);
+                            lock.push((glyph_visitor.2 .0, sdf, SdfType::Normal));
+
+                            if let Some(outer_ranges) = glyph_visitor.3 {
+                                for v in outer_ranges {
+                                    let outer_glow_sdf = glyph_visitor.0.compute_sdf_tex(
+                                        result_arcs.clone(),
+                                        FONT_SIZE,
+                                        v,
+                                        false,
+                                        v,
+                                    );
+                                    lock.push((
+                                        glyph_visitor.2 .0,
+                                        outer_glow_sdf,
+                                        SdfType::OuterGlow(v),
+                                    ));
+                                }
                             }
-                        }
-                    }
 
-                    let result_arcs = if let Some(info) = crach_info {
-                        info
-                    } else if let Some(buffer) = stroe::get(key.clone()).await {
-                        #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
-                        {
-                            bitcode::deserialize::<CellInfo>(&buffer[..]).unwrap()
-                        }
+                            if let Some(args) = glyph_visitor.4 {
+                                for (shadow_range, weight) in args {
+                                    let SdfInfo2 {
+                                        tex_info,
+                                        sdf_tex,
+                                        tex_size,
+                                    } = glyph_visitor.0.compute_sdf_tex(
+                                        result_arcs.clone(),
+                                        FONT_SIZE,
+                                        PXRANGE,
+                                        false,
+                                        (shadow_range as f32 + f32::from(weight) * 3.0) as u32 + 2,
+                                    );
+                                    let sdf_tex = gaussian_blur(
+                                        sdf_tex,
+                                        tex_size as u32,
+                                        tex_size as u32,
+                                        shadow_range,
+                                        f32::from(weight),
+                                    );
+                                    lock.push((
+                                        glyph_visitor.2 .0,
+                                        SdfInfo2 {
+                                            tex_info,
+                                            sdf_tex,
+                                            tex_size,
+                                        },
+                                        SdfType::Shadow(shadow_range, weight),
+                                    ));
+                                }
+                            }
 
-                        #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                        buffer
-                    } else {
-                        #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
-                        {
-                            let arcs = glyph_visitor.0.compute_near_arcs(2.0);
-                            let buffer = bitcode::serialize(&arcs).unwrap();
-                            stroe::write(key, buffer).await;
-                            arcs
-                        }
-
-                        #[cfg(all(target_arch = "wasm32", not(feature = "empty")))]
-                        {
-                            let buffer = glyph_visitor.0.compute_near_arcs(1.0).await;
-                            stroe::write(key, buffer.clone()).await;
-                            buffer
-                        }
-                    };
-                    // log::error!("computer char {}, time: {:?}. glyph_id: {:?}", char, time.elapsed(), glyph_visitor.2);
-                    let lock = &mut result.0.lock().unwrap().font_result;
-                    let mut sdf = glyph_visitor.0.compute_sdf_tex(
-                        result_arcs.clone(),
-                        FONT_SIZE,
-                        glyph_visitor.5,
-                        false,
-                        glyph_visitor.5,
-                    );
-                    sdf.tex_info.char = char;
-                    // log::error!("char: {:?}", sdf.tex_info);
-                    lock.push((glyph_visitor.2 .0, sdf, SdfType::Normal));
-
-                    if let Some(outer_ranges) = glyph_visitor.3 {
-                        for v in outer_ranges {
-                            let outer_glow_sdf = glyph_visitor.0.compute_sdf_tex(
-                                result_arcs.clone(),
-                                FONT_SIZE,
-                                v,
-                                false,
-                                v,
-                            );
-                            lock.push((glyph_visitor.2 .0, outer_glow_sdf, SdfType::OuterGlow(v)));
-                        }
-                    }
-
-                    if let Some(args) = glyph_visitor.4 {
-                        for (shadow_range, weight) in args {
-                            let SdfInfo2 {
-                                tex_info,
-                                sdf_tex,
-                                tex_size,
-                            } = glyph_visitor.0.compute_sdf_tex(
-                                result_arcs.clone(),
-                                FONT_SIZE,
-                                glyph_visitor.5,
-                                false,
-                                (shadow_range as f32 + f32::from(weight) * 3.0) as u32 + 2,
-                            );
-                            let sdf_tex = gaussian_blur(
-                                sdf_tex,
-                                tex_size as u32,
-                                tex_size as u32,
-                                shadow_range,
-                                f32::from(weight),
-                            );
-                            lock.push((
-                                glyph_visitor.2 .0,
-                                SdfInfo2 {
-                                    tex_info,
-                                    sdf_tex,
-                                    tex_size,
-                                },
-                                SdfType::Shadow(shadow_range, weight),
-                            ));
-                        }
-                    }
-
-                    // log::trace!("encode_data_tex======cur_count: {:?}, atlas_bounds={:?}, await_count={:?}, tex_size={:?}", lock.0, atlas_bounds, await_count, tex_size);
-                    let r = await_count.fetch_sub(1, Ordering::Relaxed);
-                    // log::warn!("r1============{:?}", r);
-                    if r == 1 {
-                        log::trace!("encode_data_tex1");
-                        async_value1.set(());
-                    }
-                })
-                .unwrap();
-            ll += 1;
-        }
+                            // log::trace!("encode_data_tex======cur_count: {:?}, atlas_bounds={:?}, await_count={:?}, tex_size={:?}", lock.0, atlas_bounds, await_count, tex_size);
+                            let r = await_count.fetch_sub(1, Ordering::Relaxed);
+                            // log::warn!("r1============{:?}", r);
+                            if r == 1 {
+                                log::trace!("encode_data_tex1");
+                                async_value1.set(());
+                            }
+                        })
+                        .unwrap();
+                    ll += 1;
+                }
+            // })
+            // .unwrap();
     }
 
     pub fn update<F: FnMut(Block, FontImage) + Clone + 'static>(
@@ -1193,28 +1204,40 @@ impl Sdf2Table {
         // let async_value = AsyncValue::new();
         let mut bboxs = self.bboxs.clone();
         self.bboxs.clear();
+        // MULTI_MEDIA_RUNTIME
+        //     .spawn(async move {
+                // if !INTI_STROE.load(Ordering::Relaxed) {
+                //     // log::error!("=============存储未初始化");
+                //     let async_value3 = AsyncValue::new();
+                //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                //     async_value3.await;
+                // }
 
-        // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
-        for (hash, box_info) in bboxs.drain() {
-            let async_value1 = async_value.clone();
-            let result1 = result.clone();
-            let await_count = await_count.clone();
-            MULTI_MEDIA_RUNTIME
-                .spawn(async move {
-                    let sdfinfo = blur_box(box_info.clone());
+                // 遍历所有等待处理的字符贝塞尔曲线，将曲线转化为圆弧描述（多线程）
+                for (hash, box_info) in bboxs.drain() {
+                    let async_value1 = async_value.clone();
+                    let result1 = result.clone();
+                    let await_count = await_count.clone();
+                    MULTI_MEDIA_RUNTIME
+                        .spawn(async move {
+                            let sdfinfo = blur_box(box_info.clone());
 
-                    // log::debug!("load========={:?}, {:?}", lock.0, len);
-                    let lock = &mut result1.0.lock().unwrap().box_result;
-                    // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
-                    lock.push((hash, box_info, sdfinfo));
-                    if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
-                        log::trace!("encode_data_tex1");
-                        async_value1.set(());
-                        log::trace!("encode_data_tex2");
-                    }
-                })
-                .unwrap();
-        }
+                            // log::debug!("load========={:?}, {:?}", lock.0, len);
+                            let lock = &mut result1.0.lock().unwrap().box_result;
+                            // log::trace!("encode_data_tex======cur_count: {:?}, grid_size={:?}, await_count={:?}, text_info={:?}", lock.0, await_count);
+                            lock.push((hash, box_info, sdfinfo));
+                            if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                                log::trace!("encode_data_tex1");
+                                async_value1.set(());
+                                log::trace!("encode_data_tex2");
+                            }
+                        })
+                        .unwrap();
+                }
+            // })
+            // .unwrap();
+
+        // async_value
     }
 
     pub fn update_box_shadow<F: FnMut(Block, FontImage) + Clone + 'static>(
@@ -1312,6 +1335,13 @@ impl Sdf2Table {
             } else {
                 MULTI_MEDIA_RUNTIME
                     .spawn(async move {
+                        // if !INTI_STROE.load(Ordering::Relaxed) {
+                        //     // log::error!("=============存储未初始化");
+                        //     let async_value3 = AsyncValue::new();
+                        //     INTI_STROE_VALUE.lock().unwrap().push(async_value3.clone());
+                        //     async_value3.await;
+                        // }
+
                         #[cfg(all(not(target_arch = "wasm32"), not(feature = "empty")))]
                         let sdfinfo =
                             Some(info.compute_sdf_tex(size, pxrange, false, cur_off, 1.0));
@@ -1498,8 +1528,30 @@ pub fn create_async_value(font: &Atom, chars: &[char]) -> AsyncValue<Vec<Vec<u8>
     let r = AsyncValue::new();
     let k = lock.insert(r.clone());
     if let Some(cb) = LOAD_CB_SDF.0.get() {
-        cb(k, unsafe { transmute::<_, f64>(font.str_hash()) }, chars);
+        cb(k,  unsafe {transmute::<_, f64>(font.str_hash())}, chars);
     } else {
     }
     r
+}
+
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct FontCfg {
+//     pub name: String,
+//     pub metrics: MetricsInfo,
+//     pub glyphs: XHashMap<char, GlyphInfo>,
+// }
+
+// // 字符的sdf值
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct CharSdf {
+// 	pub unicode: u32,        // 字符的unicode编码
+//     pub buffer: Vec<u8>,  // 字符的sdf buffer
+// }
+
+
+#[test]
+fn test (){
+    // let data = include_bytes!("../../SOURCEHANSANSK-MEDIUM.ttf").to_vec();
+// 
+    // let 
 }
