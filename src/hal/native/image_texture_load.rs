@@ -51,7 +51,7 @@ pub async fn load_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue
 /// 5. 返回纹理对象及相关元数据
 async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, queue: &wgpu::Queue) -> Result<ImageTexture, ImageError> {
     let image = crate::image::load_from_url(&desc.url).await?;
-    let is_opacity = desc.url.ends_with(".png");
+    let is_opacity = desc.url.ends_with(".jpg");
 
     let buffer_temp;
 	// let buffer_temp1;
@@ -135,6 +135,10 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
     let mip_level_count = ktx.mipmap_levels().max(1);
     let layer_count = ktx.array_elements().max(1);
     let face_count = ktx.faces().max(1);
+	let is_opacity = match ktx.gl_base_internal_format() {
+		0x1907 => true,
+		_ => false,
+	};
     
 
 	let texture_extent = wgpu::Extent3d {
@@ -180,7 +184,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 
 
     Ok(ImageTexture {
-        texture, is_opacity: true/*TODO*/,
+        texture, is_opacity: is_opacity,
         width: ktx.pixel_width(), height: ktx.pixel_width(), format,
         size: buffer.len(),
         view_dimension: view_dimension(layer_count, face_count, ktx.pixel_depth()),
