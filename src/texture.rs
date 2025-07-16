@@ -46,6 +46,7 @@ impl PiDefaultTextureFormat for wgpu::TextureFormat {
 
 /// 图像纹理结构体
 /// 封装WGPU纹理及相关属性信息
+#[derive(Debug)]
 pub struct ImageTexture {
     /// WGPU纹理对象
     pub texture: wgpu::Texture,
