@@ -103,12 +103,12 @@ pub struct Sdf2Table {
     // text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
     // blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
-    glyph_id_map: XHashMap<(FontFaceId, u16), GlyphId>,
+    glyph_id_map: XHashMap<(FontFaceId, u32), GlyphId>,
     pub glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 
     pub(crate) index_packer: TextPacker,
     pub data_packer: TextPacker,
-    pub outline_info: XHashMap<(DefaultKey, u16), OutlineInfo>,
+    pub outline_info: XHashMap<(DefaultKey, u32), OutlineInfo>,
 
     // 字体阴影参数， u32: 模糊半径; NotNan<f32>: 粗体正常和细体
     pub font_shadow: XHashMap<GlyphId, Vec<(u32, NotNan<f32>)>>,
@@ -439,14 +439,11 @@ impl Sdf2Table {
                             let offset = self
                                 .index_packer
                                 .alloc(tex_size as usize, tex_size as usize)?;
-                            let bbox = Aabb::new(
+                            let plane_bounds = Aabb::new(
                                 Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                                 Point::new(outline_info.bbox[2], outline_info.bbox[3]),
                             );
-                            let plane_bounds = bbox.scaled(&Vector::new(
-                                1.0 / outline_info.units_per_em as f32,
-                                1.0 / outline_info.units_per_em as f32,
-                            ));
+
 
                             let glyph = Glyph {
                                 plane_min_x: plane_bounds.mins.x,
@@ -555,14 +552,11 @@ impl Sdf2Table {
                                     }else{
                                         continue;
                                     };
-                                let bbox = Aabb::new(
+                                let plane_bounds = Aabb::new(
                                     Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                                     Point::new(outline_info.bbox[2], outline_info.bbox[3]),
                                 );
-                                let plane_bounds = bbox.scaled(&Vector::new(
-                                    1.0 / outline_info.units_per_em as f32,
-                                    1.0 / outline_info.units_per_em as f32,
-                                ));
+
 
                                 let glyph = Glyph {
                                     plane_min_x: plane_bounds.mins.x,
@@ -647,14 +641,11 @@ impl Sdf2Table {
                 .index_packer
                 .alloc(tex_size as usize, tex_size as usize)
                 .unwrap();
-            let bbox = Aabb::new(
+            let plane_bounds = Aabb::new(
                 Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                 Point::new(outline_info.bbox[2], outline_info.bbox[3]),
             );
-            let plane_bounds = bbox.scaled(&Vector::new(
-                1.0 / outline_info.units_per_em as f32,
-                1.0 / outline_info.units_per_em as f32,
-            ));
+
             let glyph = Glyph {
                 plane_min_x: plane_bounds.mins.x,
                 plane_min_y: plane_bounds.mins.y,
@@ -689,14 +680,11 @@ impl Sdf2Table {
                 tex_size,
                 ..
             } = outline_info.compute_layout(FONT_SIZE, range, range);
-            let bbox = Aabb::new(
+            let plane_bounds = Aabb::new(
                 Point::new(outline_info.bbox[0], outline_info.bbox[1]),
                 Point::new(outline_info.bbox[2], outline_info.bbox[3]),
             );
-            let plane_bounds = bbox.scaled(&Vector::new(
-                1.0 / outline_info.units_per_em as f32,
-                1.0 / outline_info.units_per_em as f32,
-            ));
+
             let offset = self
                 .index_packer
                 .alloc(tex_size as usize, tex_size as usize)

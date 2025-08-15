@@ -324,7 +324,7 @@ impl FontFace {
     }
 
     /// 水平宽度
-    pub fn horizontal_advance_of_glyph_index(&mut self, glyph_index: u16) -> f32 {
+    pub fn horizontal_advance_of_glyph_index(&mut self, glyph_index: u32) -> f32 {
         return horizontalAdvanceOfGlyphIndex(self.0.clone(), glyph_index);
     }
 
@@ -371,7 +371,7 @@ impl FontFace {
         }
     }
 
-    pub fn to_outline_of_glyph_index(&self, glyph_index: u16) -> OutlineInfo {
+    pub fn to_outline_of_glyph_index(&self, glyph_index: u32) -> OutlineInfo {
         let js_value = toOutlineOfGlyphIndex(self.0.clone(), glyph_index);
         let bbox = js_sys::Reflect::get(&js_value, &"bbox".to_string().into()).unwrap();
         let units_per_em =
@@ -385,11 +385,11 @@ impl FontFace {
         }
     }
 
-    pub fn glyph_index(&self, c: char) -> u16 {
+    pub fn glyph_index(&self, c: char) -> u32 {
         glyphIndex(self.0.clone(), c.to_string())
     }
 
-    pub fn glyph_indexs(&self, text: &str, script: u32) -> Vec<u16> {
+    pub fn glyph_indexs(&self, text: &str, script: u32) -> Vec<u32> {
         glyphIndexs(self.0.clone(), text.to_string(), script)
     }
 

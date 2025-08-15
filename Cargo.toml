@@ -1,6 +1,6 @@
 [package]
 name = "pi_hal"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 authors = ["yineng <yineng@gmail.com>"]
 description = "Front end cross platform packaging"
@@ -73,7 +73,7 @@ single_thread = [] # 本地平台，设置该feature有效，运行时为单线�
 web_local_load = []
 
 [patch.yn]
-# pi_sdf = {path="../pi_sdf"}
+pi_sdf = {path="../pi_sdf3"}
 pi_wgpu = {path="../pi_wgpu"}
 
 [patch.crates-io]
