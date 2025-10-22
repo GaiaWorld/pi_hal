@@ -185,7 +185,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 
     Ok(ImageTexture {
         texture, is_opacity: is_opacity,
-        width: ktx.pixel_width(), height: ktx.pixel_width(), format,
+        width: ktx.pixel_width(), height: ktx.pixel_height(), format,
         size: buffer.len(),
         view_dimension: view_dimension(layer_count, face_count, ktx.pixel_depth()),
     })
