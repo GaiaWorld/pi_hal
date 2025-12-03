@@ -146,7 +146,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 		height: ktx.pixel_height(),
 		depth_or_array_layers: depth_or_array_layers(layer_count, face_count, ktx.pixel_depth()),
 	}.physical_size(format);
-	log::warn!("width====={:?}, height==={:?}", texture_extent.width, texture_extent.height);
+	log::warn!("load_compress {:?}!! width====={:?}, height==={:?}, format: {:?}", &desc.url, texture_extent.width, texture_extent.height, format);
 
 	// let byte_size = buffer.len();
 	// let mut textures = decoder.read_textures();

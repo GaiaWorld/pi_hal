@@ -26,11 +26,50 @@ pub struct SplitChar<'a> {
     merge_whitespace: bool,
     last: Option<char>,
     type_id: usize, // 0表示单字词, 1表示ascii字母 2及以上代表字符的type_id, MAX表示数字
+    cannot_start_offset: u16,
+}
+
+// 不能在首位的标点符号
+const CANNOT_START_CHARS: &str = "，,。.、；;：:！!？?）》〉)]}…’”";
+
+impl <'a> SplitChar<'a> {
+    // 不能在首位的标点符号
+		fn compute_first_char(&mut self, c: char) -> Option<SplitResult>{
+			self.last = self.iter.next();
+			self.cur_index += 1;
+			let mut last_cannot_start = false;
+			if let Some(last) = self.last {
+				last_cannot_start = CANNOT_START_CHARS.contains(last);
+			}
+			let cur_cannot_start = CANNOT_START_CHARS.contains(c);
+			// println!("======== last_cannot_start: {}, cur_cannot_start: {}", last_cannot_start, cur_cannot_start);
+			if last_cannot_start && !cur_cannot_start {
+				self.cannot_start_offset += 1;
+				Some(SplitResult::WordStart((self.cur_index - 1) as isize,c))
+			} else {
+				if self.cannot_start_offset > 0 {
+					if !last_cannot_start && cur_cannot_start{
+                        self.cannot_start_offset = u16::MAX;
+                    } else {
+                        self.cannot_start_offset += 1;
+                    }
+					Some(SplitResult::WordNext((self.cur_index - 1) as isize,c))
+				}else{
+					Some(SplitResult::Word((self.cur_index - 1) as isize,c))
+				}
+			}
+		}
 }
 
 impl<'a> Iterator for SplitChar<'a> {
     type Item = SplitResult;
     fn next(&mut self) -> Option<Self::Item> {
+
+        if self.cannot_start_offset == u16::MAX{
+            self.cannot_start_offset = 0;
+            return Some(SplitResult::WordEnd(-1))
+        }
+        
         match self.last {
             Some(c) if self.type_id == 0 => {
                 if c == '\n' {
@@ -55,15 +94,17 @@ impl<'a> Iterator for SplitChar<'a> {
                     }
                     Some(SplitResult::Whitespace((self.cur_index - 1) as isize))
                 } else if !self.word_split {
-                    self.last = self.iter.next();
-					self.cur_index += 1;
-                    Some(SplitResult::Word((self.cur_index - 1) as isize,c))
+                    self.compute_first_char(c)
+                    // self.last = self.iter.next();
+					// self.cur_index += 1;
+                    // Some(SplitResult::Word((self.cur_index - 1) as isize,c))
                 } else {
                     self.type_id = get_type_id(c, char::from(0));
                     if self.type_id == 0 {
-                        self.last = self.iter.next();
-						self.cur_index += 1;
-                        Some(SplitResult::Word((self.cur_index - 1) as isize,c))
+                        self.compute_first_char(c)
+                        // self.last = self.iter.next();
+						// self.cur_index += 1;
+                        // Some(SplitResult::Word((self.cur_index - 1) as isize,c))
                     } else {
                         // 如果是单词开始，不读取下个字符，因为需要保留当前字符做是否为单词的判断
                         Some(SplitResult::WordStart(self.cur_index as isize,c))
@@ -76,7 +117,7 @@ impl<'a> Iterator for SplitChar<'a> {
                 match self.last {
                     Some(c) => {
                         let id = get_type_id(c, old_c);
-                        if id == self.type_id {
+                        if id == self.type_id || CANNOT_START_CHARS.contains(c){
                             Some(SplitResult::WordNext(self.cur_index as isize,c))
                         } else {
                             self.type_id = 0;
@@ -134,6 +175,7 @@ pub fn split<'a>(s: &'a str, word_split: bool, merge_whitespace: bool) -> SplitC
         merge_whitespace: merge_whitespace,
         last: last,
         type_id: 0,
+        cannot_start_offset: 0
     }
 }
 
