@@ -11,7 +11,7 @@ use pi_async_rt::rt::AsyncRuntime;
 use pi_atom::Atom;
 use pi_share::Share;
 
-use crate::{create_async_value, Arg};
+use crate::{Arg, create_async_value, texture::RES_MAP};
 
 use super::runtime::MULTI_MEDIA_RUNTIME;
 
@@ -135,11 +135,21 @@ pub async fn from_path_or_url(path: &str) -> DynamicImage {
 }
 
 pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
+    // println!("=========== image load_from_url: {:?}", path);
+    let data = {
+        let r = RES_MAP.read().unwrap();
+        let r = r.get(path).cloned();
+        if let Some(data) = r{
+            return image::load_from_memory(&data);
+        }
+    };
+
 	let mut hasher = DefaultHasher::new();
     path.hash(&mut hasher);
     let v = create_async_value("file", "", hasher.finish(), vec![Arg::String(path.to_string())]);
 	// 此处需要放在多线程运行时中解码(当前运行时可能不是一个多线程运行时)
 	let wait = MULTI_MEDIA_RUNTIME.wait::<Result<DynamicImage, ImageError>>();
+    let path = path.clone();
 	wait.spawn(MULTI_MEDIA_RUNTIME.clone(), None, async move {
         let r = match v.await {
             Ok(r) => r,
@@ -147,6 +157,16 @@ pub async fn load_from_url(path: &Atom) -> Result<DynamicImage, ImageError> {
                 return Ok(Err(ImageError::IoError(std::io::Error::other(e))));
             }
         };
+        let r = if r.len() > 0 {
+			r
+		} else {
+			if let Some(data) = RES_MAP.read().unwrap().get(&path) {
+				data.clone()
+			} else {
+				 return Ok(Err(ImageError::IoError(std::io::Error::other(""))));
+			}
+		};
+
 		Ok(image::load_from_memory(&r))
 	})
 	.unwrap();

@@ -1,6 +1,31 @@
+use std::{collections::HashMap, sync::{Arc, RwLock}};
 
 use pi_atom::Atom;
+use pi_share::Share;
 use pi_wgpu::{self as wgpu, AstcBlock, AstcChannel, TextureDimension, TextureViewDimension};
+
+lazy_static! {
+    pub static ref RES_MAP: RwLock<HashMap<Atom, Share<Vec<u8>>>> = RwLock::new(HashMap::default());
+}
+
+pub fn remove_res_cache(key: &Atom ){
+    let is_have = {RES_MAP.read().unwrap().contains_key(key)};
+    println!("======== remove_res_cache: {:?}", (is_have, key, RES_MAP.read().unwrap().len()));
+    if is_have {
+        let _ = RES_MAP.write().unwrap().remove(key);
+    }
+}
+
+pub fn have_cache(key: &Atom) -> bool{
+    RES_MAP.read().unwrap().contains_key(key)
+}
+
+pub fn insert_res_cache(key: &Atom, data: &[u8]){
+    let is_have = { RES_MAP.read().unwrap().contains_key(key)};
+    if !is_have {
+        RES_MAP.write().unwrap().insert(key.clone(), Share::new(data.to_vec()));
+    }
+}
 
 /// 默认纹理格式特性
 /// 提供平台相关的默认纹理格式判断方法
