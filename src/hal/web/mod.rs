@@ -93,6 +93,8 @@ extern "C" {
     pub fn createSvgInfo(bbox: &[f32], arc_endpoints: Vec<f32>, is_area: bool, is_reverse: Option<bool>,) -> JsValue;
     pub fn free(obj: JsValue) -> JsValue;
     pub async fn loadFontSdf() -> JsValue;
+    #[wasm_bindgen(catch)]
+    pub async fn loadSdfGlyphs(font_name: String, chars: &[u32]) -> Result<JsValue, JsValue>;
 
     pub fn computeLayout(info: JsValue, size: usize, pxrange: u32,  cur_off: u32) -> JsValue;
     pub fn computeSvgLayout(bbox: &[f32], size: usize, pxrange: u32,  cur_off: u32) -> JsValue;

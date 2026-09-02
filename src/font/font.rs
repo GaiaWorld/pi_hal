@@ -544,7 +544,7 @@ impl FontMgr {
 	pub fn add_sdf_cfg(&mut self, font_cfg: FontCfg) {
 		let font_face = Atom::from(font_cfg.name.clone());
 		let font_face_id = self.create_font_face(&font_face);
-		self.table.sdf_table.add_cfg(font_face_id, font_cfg);
+		self.table.sdf2_table.add_static_font(font_face_id, font_cfg);
 	}
 
 	/// 添加默认SDF字符

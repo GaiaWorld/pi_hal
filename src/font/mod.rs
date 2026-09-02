@@ -3,6 +3,7 @@ pub mod text_pack;
 pub mod text_split;
 pub mod sdf_table;
 pub mod sdf2_table;
+mod static_sdf_font;
 pub mod blur;
 pub mod sdf_gpu;
 // pub mod bitmap_table;

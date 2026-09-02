@@ -56,6 +56,7 @@ use super::blur::compute_box_layout;
 use super::blur::BoxInfo;
 use super::font::GlyphSheet;
 use super::sdf_gpu::GPUState;
+use super::static_sdf_font;
 use super::text_split::SplitChar;
 use super::text_split::SplitChar2;
 // use super::sdf_gpu::gpu_draw;
@@ -65,7 +66,7 @@ use super::{
         Block, FontFaceId, FontFamilyId, FontId, FontImage, FontInfo, Glyph, GlyphId, GlyphIdDesc,
         Size,
     },
-    sdf_table::MetricsInfo,
+    sdf_table::{FontCfg, GlyphInfo, MetricsInfo},
     text_pack::TextPacker,
 };
 
@@ -77,6 +78,8 @@ use crate::{
     svg::SvgInfo,
 };
 use pi_async_rt::prelude::AsyncRuntime;
+#[cfg(target_arch = "wasm32")]
+use crate::stroe::load_sdf_glyphs;
 // use pi_async_rt::prelude::serial::AsyncRuntime;
 
 static INTI_STROE_VALUE: Mutex<Vec<AsyncValue<()>>> = Mutex::new(Vec::new());
@@ -86,6 +89,7 @@ static INTI_STROE: AtomicBool = AtomicBool::new(false);
 static IS_FIRST: AtomicBool = AtomicBool::new(true);
 pub static FONT_SIZE: usize = 32;
 pub static PXRANGE: u32 = 7;
+
 // /// 二维装箱
 // pub struct Packer2D {
 
@@ -98,12 +102,15 @@ pub fn sdf_font_size(_font_size: usize) -> usize {
 
 pub struct Sdf2Table {
     pub fonts: SecondaryMap<DefaultKey, FontFace>, // DefaultKey为FontFaceId
+    static_fonts: SecondaryMap<DefaultKey, FontCfg>,
+    default_static_font: Option<FontFaceId>,
     pub metrics: SecondaryMap<DefaultKey, MetricsInfo>, // DefaultKey为FontFaceId
     pub max_boxs: SecondaryMap<DefaultKey, Aabb>,  // DefaultKey为FontId
     // text_infos: SecondaryMap<DefaultKey, TexInfo>,
 
     // blob_arcs: Vec<(BlobArc, HashMap<String, u64>)>,
     glyph_id_map: XHashMap<(FontFaceId, u32), GlyphId>,
+    static_glyph_faces: XHashMap<GlyphId, FontFaceId>,
     pub glyphs: SlotMap<DefaultKey, GlyphIdDesc>,
 
     pub(crate) index_packer: TextPacker,
@@ -192,11 +199,14 @@ impl Sdf2Table {
 
         Self {
             fonts: Default::default(),
+            static_fonts: Default::default(),
+            default_static_font: None,
             metrics: Default::default(),
             max_boxs: Default::default(),
             // text_infos: Default::default(),
             // blob_arcs: Default::default(),
             glyph_id_map: XHashMap::default(),
+            static_glyph_faces: XHashMap::default(),
             glyphs: SlotMap::default(),
             outline_info: XHashMap::default(),
             // base_glyphs: SlotMap<DefaultKey, BaseCharDesc>,
@@ -256,7 +266,6 @@ impl Sdf2Table {
                 descender: descender,
                 underline_y: 0.0,         // todo 暂时不用，先写0
                 underline_thickness: 0.0, // todo
-                em_size: 1.0,
                 // units_per_em: r.units_per_em(),
             },
         );
@@ -272,10 +281,31 @@ impl Sdf2Table {
         );
     }
 
+    pub(crate) fn add_static_font(&mut self, font_id: FontFaceId, font_cfg: FontCfg) {
+        let mut metrics = font_cfg.metrics.clone();
+        let font_size = metrics.font_size.max(1.0);
+        metrics.line_height /= font_size;
+        metrics.max_height /= font_size;
+        metrics.ascender /= font_size;
+        metrics.descender /= font_size;
+        metrics.underline_y /= font_size;
+        metrics.underline_thickness /= font_size;
+        self.metrics.insert(font_id.0, metrics);
+        self.static_fonts.insert(font_id.0, font_cfg);
+        self.default_static_font = Some(font_id);
+    }
+
     // 文字高度
     pub fn height(&mut self, font: &FontInfo) -> (f32, f32 /*max_height*/) {
         let mut ret = (0.0, 0.0);
         for font_id in font.font_ids.iter() {
+            if let Some(metrics) = self.metrics.get(font_id.0) {
+                let height = metrics.ascender - metrics.descender;
+                if height > ret.0 {
+                    ret.0 = height;
+                }
+                continue;
+            }
             if let Some(r) = self.fonts.get(font_id.0) {
                 let height = r.ascender() - r.descender();
                 if height > ret.0 {
@@ -288,6 +318,9 @@ impl Sdf2Table {
     }
 
     pub fn metrics(&self, glyph_id: GlyphId, font: &FontInfo) -> Option<&MetricsInfo> {
+        if let Some(font_face_id) = self.static_glyph_faces.get(&glyph_id) {
+            return self.metrics.get(font_face_id.0);
+        }
         let glyph = &self.glyphs[glyph_id.0];
         if glyph.font_face_index.is_null() {
             return None;
@@ -392,12 +425,20 @@ impl Sdf2Table {
         char: char,
     ) -> Option<GlyphId> {
         // log::error!("glyph_id: {:?}",(&font_id, char));
-        for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
+        let font_face_ids = font_info.font_ids.clone();
+        for (_index, font_face_id) in font_face_ids.iter().enumerate() {
             if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                 let mut glyph_index = font_face.glyph_index(char);
                 let mut char = char;
                 if glyph_index == 0 {
                     log::warn!("{:?} is not have {}", font_info.font.font_family_string.as_str(), char);
+                }
+                if glyph_index == 0 {
+                    if let Some(default_font) = self.default_static_font {
+                        if let Some(glyph_id) = static_sdf_font::glyph_id(&self.static_fonts, &self.metrics, &mut self.glyph_id_map, &mut self.glyphs, &mut self.index_packer, &mut self.static_glyph_faces, font_id, font_info, default_font, char) {
+                            return Some(glyph_id);
+                        }
+                    }
                 }
                 if glyph_index == 0 {
                     char = '□';
@@ -492,7 +533,8 @@ impl Sdf2Table {
         let mut str = text.to_string();
         // if 
         let mut is_loop = true;
-        for (_index, font_face_id) in font_info.font_ids.iter().enumerate() {
+        let font_face_ids = font_info.font_ids.clone();
+        for (_index, font_face_id) in font_face_ids.iter().enumerate() {
             if !is_loop {
                 break;
             }
@@ -506,6 +548,21 @@ impl Sdf2Table {
                 let mut index = 0;
                 for (mut glyph_index, mut char) in glyph_indexs.into_iter().zip(text.chars()){
                     log::debug!("========= glyph_index: {}, char: {}", glyph_index, char);
+                    if glyph_index == 0 {
+                        log::warn!("{:?} is not have {}", font_info.font.font_family_string.as_str(), char);
+                    }
+                    if glyph_index == 0 {
+                        if let Some(default_font) = self.default_static_font {
+                            if let Some(glyph_id) = static_sdf_font::glyph_id(&self.static_fonts, &self.metrics, &mut self.glyph_id_map, &mut self.glyphs, &mut self.index_packer, &mut self.static_glyph_faces, font_id, font_info, default_font, char) {
+                                glyph_ids[index] = Some(glyph_id);
+                                if is_loop {
+                                    is_loop = false;
+                                }
+                                index += 1;
+                                continue;
+                            }
+                        }
+                    }
                     if glyph_index == 0 {
                         char = '□';
                         glyph_index = font_face.glyph_index('□');
@@ -860,6 +917,7 @@ impl Sdf2Table {
         result: SdfResult,
         await_count: usize,
     ) -> AsyncValue<()> {
+        // log::error!("======= draw_await ");
         let async_value = AsyncValue::new();
         if await_count == 0 {
             let async_value1 = async_value.clone();
@@ -921,6 +979,7 @@ impl Sdf2Table {
         let mut outline_infos = Vec::with_capacity(await_count.load(Ordering::Relaxed));
         let mut chars = Vec::new();
         let mut keys = Vec::new();
+        let mut static_glyphs: HashMap<String, Vec<(Glyph, char, DefaultKey)>> = HashMap::new();
 
         // 遍历所有的等待文字， 取到文字的贝塞尔曲线描述
         if await_count.load(Ordering::Relaxed) != 0 {
@@ -938,7 +997,12 @@ impl Sdf2Table {
                         await_count.fetch_sub(1, Ordering::Relaxed);
                         continue;
                     }
-                    let font_face_id = font_info.font_ids[g.font_face_index];
+                    let font_face_id = self.static_glyph_faces.get(&glyph_id).copied().unwrap_or(font_info.font_ids[g.font_face_index]);
+                    if self.static_fonts.get(font_face_id.0).is_some() {
+                        let font_name = sheet.font_names[font_face_id.0].as_str().to_owned();
+                        static_glyphs.entry(font_name).or_default().push((g.glyph.clone(), g.char, glyph_id.0));
+                        continue;
+                    }
                     if let Some(font_face) = self.fonts.get_mut(font_face_id.0) {
                         let glyph_index = g.glyph_index;
 
@@ -967,6 +1031,33 @@ impl Sdf2Table {
 
         result.0.lock().unwrap().font_result =
             Vec::with_capacity(await_count.load(Ordering::Relaxed));
+
+        #[cfg(target_arch = "wasm32")]
+        for (font_name, glyphs) in static_glyphs.drain() {
+            let mut async_value1 = Some(async_value.clone());
+            let await_count = await_count.clone();
+            let result = result.clone();
+            MULTI_MEDIA_RUNTIME.spawn(async move {
+                let chars: Vec<char> = glyphs.iter().map(|(_, char, _)| *char).collect();
+                let buffers = load_sdf_glyphs(&font_name, &chars).await;
+                let mut lock = result.0.lock().unwrap();
+                for ((glyph, char, glyph_id), buffer) in glyphs.into_iter().zip(buffers) {
+                    lock.font_result.push((glyph_id, static_sdf_font::sdf_info(glyph, char, buffer), SdfType::Normal));
+                    if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                        async_value1.take().unwrap().set(());
+                    }
+                }
+            }).unwrap();
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        for (_, glyphs) in static_glyphs.drain() {
+            for (_, _, _) in glyphs {
+                if await_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+                    async_value.clone().set(());
+                }
+            }
+        }
 
         let mut ll = 0;
 
