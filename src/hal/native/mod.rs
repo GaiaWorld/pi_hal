@@ -24,11 +24,42 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use parking_lot::Mutex;
 // use parry2d::shape::Shape;
+#[cfg(not(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64"))))]
 use pi_async_rt::rt::AsyncValue;
 use pi_share::Share;
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+use crossfire::oneshot::{oneshot, TxOneshot};
+
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+pub struct LoadReceiver(crossfire::oneshot::RxOneshot<Result<Share<Vec<u8>>, String>>);
+
+#[cfg(not(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64"))))]
+type LoadWaiter = AsyncValue<Result<Share<Vec<u8>>, String>>;
+
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+type LoadWaiter = TxOneshot<Result<Share<Vec<u8>>, String>>;
+
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+impl Future for LoadReceiver {
+    type Output = Result<Share<Vec<u8>>, String>;
+
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self.0).poll(context) {
+            Poll::Ready(Ok(value)) => Poll::Ready(value),
+            Poll::Ready(Err(_)) => Poll::Ready(Err("资源加载回调已取消".to_string())),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
 
 /// 压缩纹理处理模块
 /// 
@@ -88,7 +119,7 @@ lazy_static! {
     pub static ref LOAD_CB: RwLock<Option<Arc<dyn Fn(String, String, String, Vec<Arg>) + Send + Sync>>> = RwLock::new(None);
     
     /// 异步加载任务映射表
-    pub static ref LOAD_MAP: Mutex<HashMap<u64, Vec<AsyncValue<Result<Share<Vec<u8>>, String>>>>> =
+    pub static ref LOAD_MAP: Mutex<HashMap<u64, Vec<LoadWaiter>>> =
         Mutex::new(HashMap::new());
 }
 
@@ -105,10 +136,19 @@ pub fn init_load_cb(cb: Arc<dyn Fn(String, String, String, Vec<Arg>) + Send + Sy
 /// # 参数
 /// - `hash`: 资源唯一标识
 /// - `data`: 加载结果（成功包含数据，失败包含错误信息）
+#[cfg(not(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64"))))]
 pub fn on_load(hash: u64, data: Result<Share<Vec<u8>>, String>) {
     let mut v = LOAD_MAP.lock().remove(&hash).unwrap();
     v.drain(..).for_each(|v| {
         v.set(data.clone());
+    });
+}
+
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+pub fn on_load(hash: u64, data: Result<Share<Vec<u8>>, String>) {
+    let mut senders = LOAD_MAP.lock().remove(&hash).unwrap();
+    senders.drain(..).for_each(|sender| {
+        sender.send(data.clone());
     });
 }
 
@@ -122,6 +162,7 @@ pub fn on_load(hash: u64, data: Result<Share<Vec<u8>>, String>) {
 /// 
 /// # 返回值
 /// 返回异步值句柄，可用于等待加载结果
+#[cfg(not(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64"))))]
 pub fn create_async_value(modules: &str, func: &str, hash: u64, args: Vec<Arg>) -> AsyncValue<Result<Share<Vec<u8>>, String>> {
     let mut is_first = false;
     let r = {
@@ -146,4 +187,32 @@ pub fn create_async_value(modules: &str, func: &str, hash: u64, args: Vec<Arg>) 
         }
     }
     r
+}
+
+#[cfg(all(target_os = "android", any(target_arch = "arm", target_arch = "aarch64")))]
+pub fn create_async_value(
+    modules: &str,
+    func: &str,
+    hash: u64,
+    args: Vec<Arg>,
+) -> LoadReceiver {
+    let mut is_first = false;
+    let receiver = {
+        let mut lock = LOAD_MAP.lock();
+        let (sender, receiver) = oneshot();
+        if let Some(senders) = lock.get_mut(&hash) {
+            senders.push(sender);
+        } else {
+            lock.insert(hash, vec![sender]);
+            is_first = true;
+        }
+        receiver
+    };
+
+    if is_first {
+        if let Some(cb) = LOAD_CB.read().unwrap().as_ref() {
+            cb(modules.to_string(), func.to_string(), hash.to_string(), args);
+        }
+    }
+    LoadReceiver(receiver)
 }

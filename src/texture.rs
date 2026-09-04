@@ -83,6 +83,10 @@ pub struct ImageTexture {
     pub width: u32,
     /// 纹理高度（像素） 
     pub height: u32,
+    /// 纹理宽度（像素）
+    pub realwidth: u32,
+    /// 纹理高度（像素） 
+    pub realheight: u32,
     /// 纹理数据总大小（字节）
     pub size: usize,
     /// 纹理视图维度

@@ -96,6 +96,8 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
     Ok(ImageTexture {
         texture, is_opacity,
         width, height, format,
+		realheight:height,
+		realwidth: width,
         size: pre_pixel_size as usize * width as usize * height as usize,
         view_dimension: wgpu::TextureViewDimension::D2,
     })
@@ -135,6 +137,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
     let mip_level_count = ktx.mipmap_levels().max(1);
     let layer_count = ktx.array_elements().max(1);
     let face_count = ktx.faces().max(1);
+
 	let is_opacity = match ktx.gl_base_internal_format() {
 		0x1907 => true,
 		_ => false,
@@ -146,7 +149,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 		height: ktx.pixel_height(),
 		depth_or_array_layers: depth_or_array_layers(layer_count, face_count, ktx.pixel_depth()),
 	}.physical_size(format);
-	log::warn!("load_compress {:?}!! width====={:?}, height==={:?}, format: {:?}", &desc.url, texture_extent.width, texture_extent.height, format);
+	log::warn!("11111111111 load_compress {:?}!! width====={:?}, height==={:?}, format: {:?},is_opacity: {}", &desc.url, texture_extent.width, texture_extent.height, format, is_opacity);
 
 	// let byte_size = buffer.len();
 	// let mut textures = decoder.read_textures();
@@ -182,10 +185,10 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 		view_formats: &[],
 	}, TextureDataOrder::MipMajor, data);
 
-
     Ok(ImageTexture {
         texture, is_opacity: is_opacity,
-        width: ktx.pixel_width(), height: ktx.pixel_height(), format,
+		width: texture_extent.width, height: texture_extent.height, 
+        realwidth: ktx.pixel_width(), realheight: ktx.pixel_height(), format,
         size: buffer.len(),
         view_dimension: view_dimension(layer_count, face_count, ktx.pixel_depth()),
     })

@@ -517,6 +517,11 @@ impl Sdf2Table {
                 }
             }
         }
+        if let Some(default_font) = self.default_static_font {
+            if let Some(glyph_id) = static_sdf_font::glyph_id(&self.static_fonts, &self.metrics, &mut self.glyph_id_map, &mut self.glyphs, &mut self.index_packer, &mut self.static_glyph_faces, font_id, font_info, default_font, char) {
+                return Some(glyph_id);
+            }
+        }
         None
     }
 
