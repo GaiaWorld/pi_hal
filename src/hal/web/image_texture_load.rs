@@ -108,6 +108,8 @@ async fn load_common_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, qu
     Ok(ImageTexture {
         texture, is_opacity,
 		width, height, format,
+		realheight:height,
+		realwidth: width,
 		size: 4 * width as usize * height as usize,
 		view_dimension: wgpu::TextureViewDimension::D2,
     })
@@ -147,7 +149,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 				height,
 				depth_or_array_layers: depth_or_array_layers(layer_count, face_count, depth),
 			};
-			
+			let physical_size = texture_extent.physical_size(format);
 
 			log::debug!("create_texture_from_ktx, width====={:?}, height==={:?}", texture_extent.width, texture_extent.height);
 
@@ -169,6 +171,8 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 			return Ok(ImageTexture {
 				texture, is_opacity: true/*TODO*/,
 				width, height, format,
+				realheight:physical_size.width,
+				realwidth: physical_size.height,
 				size: len,
 				view_dimension: view_dimension(layer_count, face_count, depth),
 			})
