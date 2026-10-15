@@ -177,7 +177,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 
 	let texture = (device).create_texture_with_data(queue, &wgpu::TextureDescriptor {
 		label: Some("ktx texture"),
-		size: texture_extent,
+		size: physical_size,
 		mip_level_count: mip_level_count, // TODO
 		sample_count: 1,
 		dimension: dimension(ktx.pixel_height(), ktx.pixel_depth()),
