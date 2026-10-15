@@ -148,8 +148,9 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
 		width: ktx.pixel_width(),
 		height: ktx.pixel_height(),
 		depth_or_array_layers: depth_or_array_layers(layer_count, face_count, ktx.pixel_depth()),
-	}.physical_size(format);
-	log::warn!("11111111111 load_compress {:?}!! width====={:?}, height==={:?}, format: {:?},is_opacity: {}", &desc.url, texture_extent.width, texture_extent.height, format, is_opacity);
+	};
+	let physical_size = texture_extent.physical_size(format);
+	// log::warn!("11111111111 load_compress {:?}!! width====={:?}, height==={:?}, format: {:?},is_opacity: {}", &desc.url, texture_extent.width, texture_extent.height, format, is_opacity);
 
 	// let byte_size = buffer.len();
 	// let mut textures = decoder.read_textures();
@@ -188,7 +189,7 @@ async fn load_compress_from_url(desc: &ImageTextureDesc, device: &wgpu::Device, 
     Ok(ImageTexture {
         texture, is_opacity: is_opacity,
 		width: texture_extent.width, height: texture_extent.height, 
-        realwidth: ktx.pixel_width(), realheight: ktx.pixel_height(), format,
+        realwidth: physical_size.width, realheight: physical_size.height, format,
         size: buffer.len(),
         view_dimension: view_dimension(layer_count, face_count, ktx.pixel_depth()),
     })
